@@ -21,6 +21,38 @@ import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { apiErrorMessage } from '../utils/apiErrorMessage.js';
 
+const CHECKOUT_ADDRESS_STORAGE_KEY = 'hasm_web_checkout_address_v1';
+
+function defaultCheckoutAddress() {
+  return {
+    region_id: '',
+    region: '',
+    city_id: '',
+    city: '',
+    district_id: '',
+    district: '',
+    street: '',
+    home_number: '',
+    short_address: '',
+    notes: '',
+  };
+}
+
+function loadSavedCheckoutAddress() {
+  if (typeof window === 'undefined') return defaultCheckoutAddress();
+  try {
+    const raw = window.localStorage.getItem(CHECKOUT_ADDRESS_STORAGE_KEY);
+    if (!raw) return defaultCheckoutAddress();
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return defaultCheckoutAddress();
+    const merged = { ...defaultCheckoutAddress(), ...o };
+    delete merged.label;
+    return merged;
+  } catch {
+    return defaultCheckoutAddress();
+  }
+}
+
 // ─── Address step ─────────────────────────────────────────────────────────────
 function rowSearchBlob(row) {
   return [row?.name, row?.name_ar, row?.nameAr, row?.name_en, row?.nameEn].filter(Boolean).join(' ').toLowerCase();
@@ -163,21 +195,74 @@ function AddressStep({ address, setAddress, onNext, canContinue }) {
     fetchRegions().then(setRegions).catch(() => {});
   }, []);
 
-  const handleRegion = async (regionId, regionName) => {
-    setAddress((a) => ({ ...a, region_id: regionId, region: regionName, city_id: '', city: '', district_id: '', district: '' }));
+  useEffect(() => {
+    if (!address.region_id) {
+      setCities([]);
+      setDistricts([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingCities(true);
+    fetchCities(address.region_id)
+      .then((list) => {
+        if (!cancelled) setCities(list || []);
+      })
+      .catch(() => {
+        if (!cancelled) setCities([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCities(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address.region_id]);
+
+  useEffect(() => {
+    if (!address.city_id) {
+      setDistricts([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingDistricts(true);
+    fetchDistricts(address.city_id)
+      .then((list) => {
+        if (!cancelled) setDistricts(list || []);
+      })
+      .catch(() => {
+        if (!cancelled) setDistricts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDistricts(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address.city_id]);
+
+  const handleRegion = (regionId, regionName) => {
+    setAddress((a) => ({
+      ...a,
+      region_id: regionId,
+      region: regionName,
+      city_id: '',
+      city: '',
+      district_id: '',
+      district: '',
+    }));
     setCities([]);
     setDistricts([]);
-    if (!regionId) return;
-    setLoadingCities(true);
-    try { setCities(await fetchCities(regionId)); } catch {} finally { setLoadingCities(false); }
   };
 
-  const handleCity = async (cityId, cityName) => {
-    setAddress((a) => ({ ...a, city_id: cityId, city: cityName, district_id: '', district: '' }));
+  const handleCity = (cityId, cityName) => {
+    setAddress((a) => ({
+      ...a,
+      city_id: cityId,
+      city: cityName,
+      district_id: '',
+      district: '',
+    }));
     setDistricts([]);
-    if (!cityId) return;
-    setLoadingDistricts(true);
-    try { setDistricts(await fetchDistricts(cityId)); } catch {} finally { setLoadingDistricts(false); }
   };
 
   const handleDistrict = (districtId, districtName) => {
@@ -290,31 +375,6 @@ function AddressStep({ address, setAddress, onNext, canContinue }) {
           )}
         </div>
 
-        {/* Label */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t('label')}</label>
-          <div className="flex gap-2">
-            {[
-              { key: 'Home', label: t('addressHome') },
-              { key: 'Office', label: t('office') },
-              { key: 'Other', label: t('other') },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setAddress((a) => ({ ...a, label: key }))}
-                className={`flex-1 py-2 rounded-lg text-xs font-semibold border-2 transition-all ${
-                  address.label === key
-                    ? 'border-primary bg-primary-50 dark:bg-primary-900/20 text-primary'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-500'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
       </div>
 
       <button
@@ -355,13 +415,17 @@ export default function CheckoutPage() {
   const [confirmedDeliveryFee, setConfirmedDeliveryFee] = useState(null);
   const [configDeliveryPrice, setConfigDeliveryPrice] = useState(0);
 
-  const [address, setAddress] = useState({
-    region_id: '', region: '',
-    city_id: '', city: '',
-    district_id: '', district: '',
-    street: '', home_number: '',
-    short_address: '', label: 'Home', notes: '',
-  });
+  const [address, setAddress] = useState(() => loadSavedCheckoutAddress());
+
+  useEffect(() => {
+    try {
+      const payload = { ...address };
+      delete payload.label;
+      window.localStorage.setItem(CHECKOUT_ADDRESS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      /* quota / private mode */
+    }
+  }, [address]);
 
   // Redirect to cart if empty — must be in useEffect, not during render
   useEffect(() => {
