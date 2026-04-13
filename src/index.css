@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: #6D47FF;
+    --primary-light: #E4DCFF;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* RTL / LTR typography */
+  [dir="rtl"] {
+    font-family: 'Tajawal', system-ui, sans-serif;
+  }
+
+  [dir="ltr"] {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Riyal + amount: keep numeric order correct in RTL (same idea as dashboard). */
+  .currency-rtl {
+    direction: ltr;
+    unicode-bidi: embed;
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.125rem;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #C4B5FD;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #6D47FF;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-semibold text-sm transition-all duration-200 hover:bg-primary-600 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-primary/30 hover:shadow-md;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border-2 border-primary text-primary font-semibold text-sm transition-all duration-200 hover:bg-primary-50 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-primary-900/20;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-gray-600 dark:text-gray-400 font-medium text-sm transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95;
+  }
+
+  .card {
+    @apply bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm;
+  }
+
+  .input {
+    @apply w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-primary focus:outline-none transition-colors duration-200 text-sm;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .section-title {
+    @apply text-2xl font-bold text-gray-900 dark:text-white;
+  }
+
+  .price-tag {
+    @apply text-primary font-bold tabular-nums;
+  }
+
+  /* Animated gradient for live/active indicators */
+  .live-pulse {
+    @apply relative inline-flex;
+  }
+  .live-pulse::before {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
