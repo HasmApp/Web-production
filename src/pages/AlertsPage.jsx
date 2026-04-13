@@ -59,7 +59,7 @@ export default function AlertsPage() {
         <h1 className="section-title mb-8">{t('priceAlertsTitle')}</h1>
         <EmptyState
           icon={Bell}
-          title={t('signInViewAlerts')}
+          title={t('loginViewAlerts')}
           action={<Link to="/login" className="btn-primary">{t('login')}</Link>}
         />
       </div>

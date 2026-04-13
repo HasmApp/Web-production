@@ -17,7 +17,7 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     if (!isAuthenticated) {
-      toast.error(t('signInToCheckout'));
+      toast.error(t('loginToCheckout'));
       navigate('/login', { state: { from: { pathname: '/checkout' } } });
       return;
     }

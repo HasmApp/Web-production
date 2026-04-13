@@ -135,7 +135,7 @@ export default function ProductPage() {
   };
 
   const handleSetAlert = async () => {
-    if (!isAuthenticated) { toast.error(t('signInPriceAlerts')); return; }
+    if (!isAuthenticated) { toast.error(t('loginPriceAlerts')); return; }
     try {
       const created = await createAlert(product._id, parseFloat(alertPrice));
       setAlert(created);
@@ -340,7 +340,7 @@ export default function ProductPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!isAuthenticated) { toast.error(t('signInAlertsShort')); return; }
+                    if (!isAuthenticated) { toast.error(t('loginAlertsShort')); return; }
                     setShowAlertForm(!showAlertForm);
                   }}
                   className="text-xs text-primary font-semibold hover:underline"

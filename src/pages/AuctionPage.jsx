@@ -292,7 +292,7 @@ export default function AuctionPage() {
       ) : !isAuthenticated ? (
         <EmptyState
           icon={Trophy}
-          title={t('signInSeeWins')}
+          title={t('loginSeeWins')}
           action={<Link to="/login" className="btn-primary">{t('login')}</Link>}
         />
       ) : wins.length === 0 ? (

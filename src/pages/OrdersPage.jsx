@@ -47,8 +47,8 @@ export default function OrdersPage() {
         <h1 className="section-title mb-8">{t('myOrders')}</h1>
         <EmptyState
           icon={Package}
-          title={t('signInOrdersTitle')}
-          description={t('signInOrdersDesc')}
+          title={t('loginOrdersTitle')}
+          description={t('loginOrdersDesc')}
           action={<Link to="/login" className="btn-primary">{t('login')}</Link>}
         />
       </div>

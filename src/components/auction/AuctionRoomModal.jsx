@@ -45,7 +45,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   }, [onClose]);
 
   const handleBid = async () => {
-    if (!isAuthenticated) { toast.error(t('signInToBid')); return; }
+    if (!isAuthenticated) { toast.error(t('loginToBid')); return; }
     const amount = parseFloat(bidAmount);
     const minNext = (room?.current_price ?? 0) + 0.01;
     if (!amount || amount < minNext) {
@@ -294,7 +294,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                   </div>
                   {!isAuthenticated && (
                     <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {t('signInToBid')}
+                      {t('loginToBid')}
                     </p>
                   )}
                 </div>
