@@ -82,7 +82,6 @@ export default function RegisterPage() {
                   placeholder={t('namePlaceholder')}
                   className="input pl-9 rtl:pr-9 rtl:pl-4"
                   required
-                  autoFocus
                 />
               </div>
             </div>

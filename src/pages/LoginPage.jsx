@@ -98,7 +98,6 @@ export default function LoginPage() {
                   placeholder={t('phoneExamplePlaceholder')}
                   className="input pl-20 rtl:pr-20 rtl:pl-4"
                   required
-                  autoFocus
                 />
               </div>
             </div>
