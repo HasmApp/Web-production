@@ -39,7 +39,7 @@ export default function RegisterPage() {
           <img
             src={logoUrl}
             alt={t('brandName')}
-            className="h-14 sm:h-16 md:h-[4.5rem] w-auto max-w-[min(320px,85vw)] object-contain object-start brightness-0 invert opacity-95"
+            className="h-20 sm:h-24 md:h-28 lg:h-32 w-auto max-w-[min(440px,90vw)] object-contain object-start brightness-0 invert opacity-95"
           />
         </div>
         <div>
@@ -59,7 +59,7 @@ export default function RegisterPage() {
             <img
               src={logoUrl}
               alt={t('brandName')}
-              className="h-12 sm:h-14 md:h-16 w-auto max-w-[min(300px,90vw)] object-contain object-start dark:brightness-110"
+              className="h-28 w-auto max-w-[min(520px,96vw)] sm:h-32 object-contain object-start dark:brightness-110"
             />
           </div>
 

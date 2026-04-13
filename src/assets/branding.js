@@ -8,4 +8,7 @@ export const contactEmail = 'info@hasm.io';
 export const contactPhone = '+966502925742';
 export const contactPhoneDisplay = '+966 50 292 5742';
 
+/** Buyer-facing terms (same content as dashboard `/terms/buyers`). */
+export const termsOfServiceUrl = 'https://dashboard.hasm.io/terms/buyers';
+
 export { logoUrl, tamaraArUrl, tamaraEnUrl };

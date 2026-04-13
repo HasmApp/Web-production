@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { deleteAccount } from '../services/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
+import { termsOfServiceUrl } from '../assets/branding.js';
 
 function ProfileRow({ icon: Icon, label, value, onClick, danger }) {
   return (
@@ -154,10 +155,15 @@ export default function ProfilePage() {
         {t('logout')}
       </button>
 
-      <p className="text-center text-xs text-gray-400 mt-6 flex flex-wrap items-center justify-center gap-1">
-        <a href="#" className="hover:underline">{t('privacyPolicy')}</a>
-        <span>·</span>
-        <a href="#" className="hover:underline">{t('termsOfService')}</a>
+      <p className="text-center text-xs text-gray-400 mt-6">
+        <a
+          href={termsOfServiceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:underline"
+        >
+          {t('termsOfService')}
+        </a>
       </p>
 
       {/* Delete confirmation modal */}

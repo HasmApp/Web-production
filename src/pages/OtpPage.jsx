@@ -92,7 +92,7 @@ export default function OtpPage() {
           <img
             src={logoUrl}
             alt={t('brandName')}
-            className="h-12 sm:h-14 md:h-16 w-auto max-w-[min(300px,90vw)] object-contain object-start dark:brightness-110"
+            className="h-28 w-auto max-w-[min(520px,96vw)] sm:h-32 object-contain object-start dark:brightness-110 lg:h-20 lg:max-w-[min(360px,90vw)]"
           />
         </div>
 

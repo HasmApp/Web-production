@@ -96,6 +96,7 @@ export const registerUser = async ({ name, phone }) => {
   const res = await api.post('/auth/register', {
     name,
     phone: normalizePhone(phone),
+    user_source: 'web',
   });
   return res.data;
 };

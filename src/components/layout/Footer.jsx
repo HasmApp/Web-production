@@ -9,6 +9,7 @@ import {
   contactEmail,
   contactPhone,
   contactPhoneDisplay,
+  termsOfServiceUrl,
 } from '../../assets/branding.js';
 
 const supplierFormNextUrl = () => {
@@ -158,10 +159,14 @@ export default function Footer() {
 
         <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
           <p>{tf('copyrightLine', { year })}</p>
-          <div className="flex items-center gap-4">
-            <Link to="#" className="hover:text-white transition-colors">{t('privacyPolicy')}</Link>
-            <Link to="#" className="hover:text-white transition-colors">{t('termsOfService')}</Link>
-          </div>
+          <a
+            href={termsOfServiceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-white transition-colors"
+          >
+            {t('termsOfService')}
+          </a>
         </div>
       </div>
     </footer>
