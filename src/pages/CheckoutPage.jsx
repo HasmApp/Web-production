@@ -396,7 +396,7 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { t, tf, lang } = useLanguage();
 
-  const STEPS = useMemo(() => [t('address'), t('payment'), t('done')], [lang, t]);
+  const STEPS = useMemo(() => [t('address'), t('payment')], [lang, t]);
   const PAYMENT_METHODS = useMemo(
     () => [
       { id: 'card',          label: t('paymentCardTitle'),     icon: CreditCard, desc: t('visaMada') },
@@ -417,6 +417,16 @@ export default function CheckoutPage() {
 
   const [address, setAddress] = useState(() => loadSavedCheckoutAddress());
 
+  /** After a successful order, `clearCart()` empties the cart; skip redirect-to-cart so we can send the user to orders. */
+  const suppressEmptyCartRedirectRef = useRef(false);
+
+  const goToOrdersAfterSuccessfulOrder = useCallback(() => {
+    suppressEmptyCartRedirectRef.current = true;
+    clearCart();
+    toast.success(t('orderPlaced'));
+    navigate('/orders', { replace: true });
+  }, [clearCart, navigate, t]);
+
   useEffect(() => {
     try {
       const payload = { ...address };
@@ -429,7 +439,13 @@ export default function CheckoutPage() {
 
   // Redirect to cart if empty — must be in useEffect, not during render
   useEffect(() => {
-    if (items.length === 0) navigate('/cart');
+    if (items.length === 0) {
+      if (suppressEmptyCartRedirectRef.current) {
+        suppressEmptyCartRedirectRef.current = false;
+        return;
+      }
+      navigate('/cart');
+    }
   }, [items.length, navigate]);
 
   const pollCharge = useCallback(
@@ -442,8 +458,7 @@ export default function CheckoutPage() {
           if (status.status === 'CAPTURED') {
             clearInterval(interval);
             await completeAfter3DS({ charge_id: chargeId, order_id: orderId });
-            clearCart();
-            setStep(2);
+            goToOrdersAfterSuccessfulOrder();
           } else if (['FAILED', 'CANCELLED', 'DECLINED'].includes(status.status)) {
             clearInterval(interval);
             toast.error(t('paymentNotCompleted'));
@@ -454,7 +469,7 @@ export default function CheckoutPage() {
         } catch {}
       }, 4000);
     },
-    [t, clearCart]
+    [t, goToOrdersAfterSuccessfulOrder]
   );
 
   const cartKey = useMemo(
@@ -583,8 +598,7 @@ export default function CheckoutPage() {
       const chargeId = chargeRes.charge_id;
 
       if (['CAPTURED', 'COMPLETED'].includes(chargeRes.status)) {
-        clearCart();
-        setStep(2);
+        goToOrdersAfterSuccessfulOrder();
         return;
       }
 
@@ -620,8 +634,7 @@ export default function CheckoutPage() {
       });
 
       if (!res.checkout_url) {
-        clearCart();
-        setStep(2);
+        goToOrdersAfterSuccessfulOrder();
         return;
       }
 
@@ -636,8 +649,7 @@ export default function CheckoutPage() {
           clearInterval(poll);
           try {
             await confirmTamaraPayment({ order_id: orderId });
-            clearCart();
-            setStep(2);
+            goToOrdersAfterSuccessfulOrder();
           } catch {
             toast.error(t('confirmPaymentFailed'));
           }
@@ -664,8 +676,7 @@ export default function CheckoutPage() {
         shortAddress: address.short_address || '',
       });
       setTransferProof(null);
-      clearCart();
-      setStep(2);
+      goToOrdersAfterSuccessfulOrder();
     } catch (err) {
       toast.error(apiErrorMessage(err, lang, t, 'bankTransferFailed'));
     } finally {
@@ -681,7 +692,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
-      {step < 2 && (
+      {step < STEPS.length && (
         <button
           type="button"
           onClick={() => (step === 0 ? navigate('/cart') : setStep(0))}
@@ -895,22 +906,6 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* ── Step 2: Done ── */}
-      {step === 2 && (
-        <div className="max-w-md mx-auto text-center py-12">
-          <div className="w-20 h-20 rounded-3xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-emerald-500" />
-          </div>
-          <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white mb-2">{t('orderPlaced')}</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-8">
-            {t('orderPlacedDesc')}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button type="button" onClick={() => navigate('/orders')} className="btn-primary py-3 px-6">{t('viewOrders')}</button>
-            <button type="button" onClick={() => navigate('/')} className="btn-outline py-3 px-6">{t('continueShopping')}</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
