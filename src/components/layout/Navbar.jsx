@@ -58,18 +58,18 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center min-h-20 h-20 gap-4">
-          {/* Logo */}
+      <div className="max-w-7xl mx-auto w-full min-w-0 px-4 sm:px-6">
+        <div className="flex min-w-0 w-full items-center min-h-20 h-20 gap-2 sm:gap-4">
+          {/* Logo — may shrink on narrow mobile so toolbar + nowrap login stay on one row */}
           <Link
             to="/"
-            className="flex items-center py-1.5 mr-3 sm:mr-4 flex-shrink-0"
+            className="flex min-w-0 shrink items-center py-1.5 me-2 sm:me-4"
             aria-label={t('brandName')}
           >
             <img
               src={logoUrl}
               alt=""
-              className="h-[3.25rem] sm:h-[4.25rem] md:h-[4.5rem] w-auto max-w-[min(360px,78vw)] object-contain object-start dark:brightness-110"
+              className="h-[3.25rem] sm:h-[4.25rem] md:h-[4.5rem] w-auto max-w-[min(9rem,36vw)] sm:max-w-[min(240px,48vw)] md:max-w-[min(360px,78vw)] object-contain object-start dark:brightness-110"
             />
           </Link>
 
@@ -94,8 +94,8 @@ export default function Navbar() {
             ))}
           </nav>
 
-          {/* Right actions */}
-          <div className="flex items-center gap-1 ml-auto">
+          {/* Toolbar — ms-auto = inline end (left in RTL, right in LTR) */}
+          <div className="flex min-w-0 shrink-0 items-center gap-0.5 sm:gap-1 ms-auto">
             {/* Search */}
             <button
               type="button"
@@ -201,7 +201,10 @@ export default function Navbar() {
                 )}
               </div>
             ) : (
-              <Link to="/login" className="btn-primary text-xs px-4 py-2">
+              <Link
+                to="/login"
+                className="btn-primary whitespace-nowrap shrink-0 px-2.5 py-2 text-[11px] sm:px-4 sm:text-xs"
+              >
                 {t('login')}
               </Link>
             )}
