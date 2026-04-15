@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Heart, ShoppingCart, TrendingDown, ChevronLeft, Bell, BellOff,
@@ -13,6 +13,7 @@ import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
+import config from '../config/config.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
 const getFavorites = () => {
@@ -49,6 +50,7 @@ export default function ProductPage() {
   const [alertPrice, setAlertPrice] = useState('');
   const [showAlertForm, setShowAlertForm] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const wsHealthyRef = useRef(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -75,6 +77,107 @@ export default function ProductPage() {
     };
     load();
   }, [id, isAuthenticated, navigate]);
+
+  // Keep product price fresh (Safari/iOS friendly): adaptive polling + resume refresh.
+  useEffect(() => {
+    let dead = false;
+    let timer = null;
+
+    const refresh = async () => {
+      try {
+        const next = await fetchProductById(id);
+        if (!dead) setProduct(next);
+      } catch {
+        // best-effort; keep the last known price
+      }
+    };
+
+    const schedule = () => {
+      if (dead) return;
+      const ms = document.hidden ? 25000 : (wsHealthyRef.current ? 15000 : 3000);
+      timer = setTimeout(async () => {
+        await refresh();
+        schedule();
+      }, ms);
+    };
+
+    refresh();
+    schedule();
+
+    const onResume = () => { refresh(); };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+
+    return () => {
+      dead = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
+  }, [id]);
+
+  // WebSocket live price updates with auto-reconnect fallback.
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    let ws = null;
+    let dead = false;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
+
+    const scheduleReconnect = () => {
+      if (dead) return;
+      const delay = Math.min(10000, 1000 * (2 ** reconnectAttempts));
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
+    const connect = () => {
+      if (dead) return;
+      try {
+        const url = token
+          ? `${config.wsBaseUrl}/ws/prices?token=${token}`
+          : `${config.wsBaseUrl}/ws/prices`;
+        ws = new WebSocket(url);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        reconnectAttempts = 0;
+        wsHealthyRef.current = true;
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          const update = msg.type === 'price_update' ? msg.data : msg;
+          if (!update?.product_id || update.current_price === undefined) return;
+          setProduct((prev) => {
+            if (!prev) return prev;
+            const pid = prev._id || prev.id;
+            if (pid !== update.product_id) return prev;
+            return { ...prev, current_price: update.current_price, currentPrice: update.current_price };
+          });
+        } catch {}
+      };
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        wsHealthyRef.current = false;
+        scheduleReconnect();
+      };
+    };
+
+    const initialTimer = setTimeout(connect, 300);
+    return () => {
+      dead = true;
+      wsHealthyRef.current = false;
+      clearTimeout(initialTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [id]);
 
   if (loading) return <PageLoader />;
   if (!product) return null;

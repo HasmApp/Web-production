@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Gavel, Users, Trophy, Package, Flame, ShoppingCart,
@@ -22,6 +22,7 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import CountdownTimer from '../components/auction/CountdownTimer.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
+import config from '../config/config.js';
 
 /**
  * Summary card for the auction list.
@@ -133,6 +134,7 @@ export default function AuctionPage() {
   const [tab, setTab]             = useState('live');
   const [openRoomId, setOpenRoomId] = useState(null);
   const [cartSyncingId, setCartSyncingId] = useState(null);
+  const wsHealthyRef = useRef(false);
 
   const goToCartWithAuctionWin = async (room, e) => {
     e.preventDefault();
@@ -205,8 +207,8 @@ export default function AuctionPage() {
     }
   };
 
-  const load = async () => {
-    setLoading(true);
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const data = await fetchAuctions();
       setAuctions(Array.isArray(data) ? data : []);
@@ -215,13 +217,109 @@ export default function AuctionPage() {
         setWins(Array.isArray(wonData) ? wonData : []);
       }
     } catch {
-      setAuctions([]);
+      if (!silent) setAuctions([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => { load(); }, [isAuthenticated]);
+
+  // Keep auction cards fresh even when WS is unavailable/throttled.
+  useEffect(() => {
+    let dead = false;
+    let timer = null;
+
+    const refresh = async () => {
+      if (dead) return;
+      await load({ silent: true });
+    };
+
+    const schedule = () => {
+      if (dead) return;
+      const ms = document.hidden ? 25000 : (wsHealthyRef.current ? 15000 : 4000);
+      timer = setTimeout(async () => {
+        await refresh();
+        schedule();
+      }, ms);
+    };
+
+    refresh();
+    schedule();
+
+    const onResume = () => { refresh(); };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+
+    return () => {
+      dead = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
+  }, [isAuthenticated]);
+
+  // Real-time auction price updates via WS, with reconnect.
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    let ws = null;
+    let dead = false;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
+
+    const scheduleReconnect = () => {
+      if (dead) return;
+      const delay = Math.min(10000, 1000 * (2 ** reconnectAttempts));
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
+    const connect = () => {
+      if (dead) return;
+      try {
+        const url = token
+          ? `${config.wsBaseUrl}/ws/prices?token=${token}`
+          : `${config.wsBaseUrl}/ws/prices`;
+        ws = new WebSocket(url);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        reconnectAttempts = 0;
+        wsHealthyRef.current = true;
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          const update = msg.type === 'price_update' ? msg.data : msg;
+          if (!update?.product_id || update.current_price === undefined) return;
+          setAuctions((prev) => prev.map((room) => {
+            const roomPid = room.product_id || room.productId;
+            if (roomPid !== update.product_id) return room;
+            return { ...room, current_price: update.current_price, currentPrice: update.current_price };
+          }));
+        } catch {}
+      };
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        wsHealthyRef.current = false;
+        scheduleReconnect();
+      };
+    };
+
+    const initialTimer = setTimeout(connect, 300);
+    return () => {
+      dead = true;
+      wsHealthyRef.current = false;
+      clearTimeout(initialTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [isAuthenticated]);
 
   const tabs = [
     { id: 'live', label: t('liveAuctionsTitle'), icon: Flame,  count: auctions.length },
