@@ -104,23 +104,57 @@ export default function HomePage() {
     setSearchInput(q);
   }, [q]);
 
-  // Polling fallback — refresh prices every 20 seconds for everyone
+  // Polling fallback — keep prices fresh for all users (especially Safari/iOS where
+  // background timers can be throttled).
   useEffect(() => {
-    const interval = setInterval(async () => {
+    let dead = false;
+    let timer = null;
+
+    const refresh = async () => {
       try {
         const data = await fetchProducts();
         const list = Array.isArray(data) ? data : data?.items || [];
-        setProducts(list);
-      } catch {}
-    }, 20000);
-    return () => clearInterval(interval);
+        if (!dead) setProducts(list);
+      } catch {
+        // best-effort fallback
+      }
+    };
+
+    const schedule = () => {
+      if (dead) return;
+      const ms = document.hidden ? 25000 : 8000;
+      timer = setTimeout(async () => {
+        await refresh();
+        schedule();
+      }, ms);
+    };
+
+    // Kick once, then continue with adaptive interval.
+    refresh();
+    schedule();
+
+    const onResume = () => {
+      // Force an immediate refresh when tab/app returns to foreground.
+      refresh();
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+
+    return () => {
+      dead = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
   }, []);
 
-  // WebSocket real-time price updates (authenticated users only)
+  // WebSocket real-time price updates.
+  // If no token is present, still attempt /ws/prices; backend may allow public feed.
+  // If backend rejects it, polling above remains the source of truth.
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    if (!token) return;
-
     let ws = null;
     let dead = false;
 
@@ -129,7 +163,10 @@ export default function HomePage() {
     const timer = setTimeout(() => {
       if (dead) return;
       try {
-        ws = new WebSocket(`${config.wsBaseUrl}/ws/prices?token=${token}`);
+        const url = token
+          ? `${config.wsBaseUrl}/ws/prices?token=${token}`
+          : `${config.wsBaseUrl}/ws/prices`;
+        ws = new WebSocket(url);
         ws.onmessage = (e) => {
           try {
             const msg = JSON.parse(e.data);
