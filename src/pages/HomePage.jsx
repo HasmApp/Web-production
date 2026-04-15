@@ -104,21 +104,23 @@ export default function HomePage() {
     setSearchInput(q);
   }, [q]);
 
-  // HTTP refresh: guests have no `/ws/prices` (JWT required) — poll often like mobile fallback.
-  // Logged-in users get WebSocket ticks; keep a light full-list sync so cards stay aligned.
-  const pricePollMs = isAuthenticated ? 30000 : 2000;
+  // HTTP refresh: guests have no `/ws/prices` (JWT required) — poll every 2s like mobile fallback.
+  // Logged-in users get WebSocket ticks; keep a light full-list sync.
   useEffect(() => {
+    const ms = isAuthenticated ? 30000 : 2000;
     const interval = setInterval(async () => {
       try {
         const data = await fetchProducts();
         const list = Array.isArray(data) ? data : data?.items || [];
         setProducts(list);
-      } catch {}
-    }, pricePollMs);
+      } catch {
+        /* ignore */
+      }
+    }, ms);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // WebSocket real-time price updates (authenticated users only)
+  // WebSocket real-time price updates (authenticated only — gateway requires JWT).
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (!token) return;
@@ -126,8 +128,6 @@ export default function HomePage() {
     let ws = null;
     let dead = false;
 
-    // 300ms debounce — absorbs React StrictMode's synchronous mount/unmount/remount
-    // and rapid isAuthenticated flips during auth context init.
     const timer = setTimeout(() => {
       if (dead) return;
       try {
@@ -147,11 +147,15 @@ export default function HomePage() {
                 })
               );
             }
-          } catch {}
+          } catch {
+            /* ignore */
+          }
         };
-        ws.onerror = () => {};  // suppress uncaught error events
+        ws.onerror = () => {};
         wsRef.current = ws;
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }, 300);
 
     return () => {
