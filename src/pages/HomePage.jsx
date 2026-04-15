@@ -79,6 +79,7 @@ export default function HomePage() {
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState(null);
   const [sort, setSort] = useState('default');
+  const wsHealthyRef = useRef(false);
 
   const selectCategory = (id) => {
     setCategory(id);
@@ -122,7 +123,8 @@ export default function HomePage() {
 
     const schedule = () => {
       if (dead) return;
-      const ms = document.hidden ? 25000 : 8000;
+      // If WS is healthy, poll lightly. If WS is down (or unauth), poll faster.
+      const ms = document.hidden ? 25000 : (wsHealthyRef.current ? 15000 : 3000);
       timer = setTimeout(async () => {
         await refresh();
         schedule();
@@ -157,39 +159,64 @@ export default function HomePage() {
     const token = localStorage.getItem('accessToken');
     let ws = null;
     let dead = false;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
 
-    // 300ms debounce — absorbs React StrictMode's synchronous mount/unmount/remount
-    // and rapid isAuthenticated flips during auth context init.
-    const timer = setTimeout(() => {
+    const connect = () => {
       if (dead) return;
       try {
         const url = token
           ? `${config.wsBaseUrl}/ws/prices?token=${token}`
           : `${config.wsBaseUrl}/ws/prices`;
         ws = new WebSocket(url);
-        ws.onmessage = (e) => {
-          try {
-            const msg = JSON.parse(e.data);
-            const update = msg.type === 'price_update' ? msg.data : msg;
-            if (update.product_id && update.current_price !== undefined) {
-              setProducts((prev) =>
-                prev.map((p) =>
-                  (p._id === update.product_id || p.id === update.product_id)
-                    ? { ...p, current_price: update.current_price }
-                    : p
-                )
-              );
-            }
-          } catch {}
-        };
-        ws.onerror = () => {};  // suppress uncaught error events
-        wsRef.current = ws;
-      } catch {}
-    }, 300);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        reconnectAttempts = 0;
+        wsHealthyRef.current = true;
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          const update = msg.type === 'price_update' ? msg.data : msg;
+          if (update.product_id && update.current_price !== undefined) {
+            setProducts((prev) =>
+              prev.map((p) =>
+                (p._id === update.product_id || p.id === update.product_id)
+                  ? { ...p, current_price: update.current_price }
+                  : p
+              )
+            );
+          }
+        } catch {}
+      };
+      ws.onerror = () => {}; // suppress uncaught error events
+      ws.onclose = () => {
+        wsHealthyRef.current = false;
+        scheduleReconnect();
+      };
+      wsRef.current = ws;
+    };
+
+    const scheduleReconnect = () => {
+      if (dead) return;
+      const delay = Math.min(10000, 1000 * (2 ** reconnectAttempts));
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(connect, delay);
+    };
+
+    // 300ms debounce — absorbs StrictMode mount/unmount/remount churn.
+    const initialTimer = setTimeout(connect, 300);
 
     return () => {
       dead = true;
-      clearTimeout(timer);
+      wsHealthyRef.current = false;
+      clearTimeout(initialTimer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       ws?.close();
     };
   }, [isAuthenticated]);
