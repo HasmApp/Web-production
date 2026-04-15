@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, TrendingDown, ArrowRight, Package } from 'lucide-react';
+import { Heart, ArrowRight, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { resolveMediaUrl } from '../../services/api.js';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
@@ -50,7 +50,6 @@ export default function ProductCard({ product }) {
 
   const initial = product.initial_price ?? product.initialPrice ?? 0;
   const current = displayPrice;
-  const minimum = product.minimum_price ?? product.minimumPrice ?? 0;
   const image = resolveMediaUrl((product.images?.[0]) || product.image || '');
   const title =
     lang === 'ar'
@@ -100,42 +99,24 @@ export default function ProductCard({ product }) {
           {title}
         </h3>
 
-        {/* Price */}
-        <div className="mt-auto pt-2 flex items-end justify-between gap-2">
-          <div>
-            <div className="flex items-baseline gap-1.5">
-              <SarAmount
-                amount={current}
-                iconSize={15}
-                className={`text-lg font-bold text-primary transition-all duration-300 ${
-                  priceChanged ? 'text-red-500 scale-110' : ''
-                }`}
-                numberClassName={`text-lg font-bold ${priceChanged ? 'text-red-500' : 'text-primary'}`}
-              />
-            </div>
-            {initial > current && (
-              <p className="text-xs text-gray-400 line-through">
-                <SarAmount amount={initial} iconSize={11} className="text-xs text-gray-400" numberClassName="text-gray-400" />
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-            <TrendingDown className="w-3.5 h-3.5 shrink-0" />
-            <span>{t('cardDroppingLabel')}</span>
-          </div>
-        </div>
-
-        {/* Min price indicator */}
-        {minimum > 0 && (
-          <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 mt-1">
-            <div
-              className="bg-primary rounded-full h-1.5 transition-all duration-700"
-              style={{
-                width: `${Math.max(5, Math.min(100, ((current - minimum) / (initial - minimum)) * 100))}%`,
-              }}
+        {/* Price — no floor / “room to drop” hints (business policy) */}
+        <div className="mt-auto pt-2">
+          <div className="flex items-baseline gap-1.5">
+            <SarAmount
+              amount={current}
+              iconSize={15}
+              className={`text-lg font-bold text-primary transition-all duration-300 ${
+                priceChanged ? 'text-red-500 scale-110' : ''
+              }`}
+              numberClassName={`text-lg font-bold ${priceChanged ? 'text-red-500' : 'text-primary'}`}
             />
           </div>
-        )}
+          {initial > current && (
+            <p className="text-xs text-gray-400 line-through mt-0.5">
+              <SarAmount amount={initial} iconSize={11} className="text-xs text-gray-400" numberClassName="text-gray-400" />
+            </p>
+          )}
+        </div>
 
         {/* View product — stock option selected on product page */}
         <div className="btn-primary w-full mt-2 text-xs py-2 flex items-center justify-center gap-1.5 pointer-events-none">

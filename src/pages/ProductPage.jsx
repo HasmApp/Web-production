@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Heart, ShoppingCart, TrendingDown, ChevronLeft, Bell, BellOff,
+  Heart, ShoppingCart, ChevronLeft, Bell, BellOff,
   Package, Truck, Shield, Star, Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -102,8 +102,6 @@ export default function ProductPage() {
       ? lockedPrice
       : (product.current_price ?? product.currentPrice ?? 0);
   const initial = product.initial_price ?? product.initialPrice ?? 0;
-  const minimum = product.minimum_price ?? product.minimumPrice ?? 0;
-  const progress = initial > minimum ? ((current - minimum) / (initial - minimum)) * 100 : 0;
   const supplierName = getSupplierDisplayName(product);
 
   // All products use stock options — no individual pieces allowed.
@@ -240,27 +238,6 @@ export default function ProductPage() {
                 <SarAmount amount={initial} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
               </p>
             )}
-            {/* Progress bar: how close to minimum */}
-            <div>
-              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1.5">
-                <span className="flex items-center gap-1"><TrendingDown className="w-3 h-3 text-primary" />{t('current')}</span>
-                <span className="inline-flex items-center gap-1 flex-wrap">
-                  <span>{t('floorPrice')}:</span>
-                  <SarAmount amount={minimum} iconSize={11} className="text-xs text-gray-500 dark:text-gray-400" numberClassName="text-xs text-gray-500 dark:text-gray-400" />
-                </span>
-              </div>
-              <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-violet-400 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.max(2, progress)}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1.5 flex flex-wrap items-center gap-1">
-                <span>{t('couldDrop')}</span>
-                <SarAmount amount={Math.max(0, current - minimum)} iconSize={11} className="text-xs text-gray-400" numberClassName="text-xs text-gray-400" />
-                <span>{t('more')}</span>
-              </p>
-            </div>
           </div>
 
           {/* Stock option selector — always required, no individual pieces */}
