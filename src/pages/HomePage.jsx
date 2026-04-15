@@ -79,7 +79,6 @@ export default function HomePage() {
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState(null);
   const [sort, setSort] = useState('default');
-  const wsHealthyRef = useRef(false);
 
   const selectCategory = (id) => {
     setCategory(id);
@@ -105,118 +104,59 @@ export default function HomePage() {
     setSearchInput(q);
   }, [q]);
 
-  // Polling fallback — keep prices fresh for all users (especially Safari/iOS where
-  // background timers can be throttled).
+  // HTTP refresh: guests have no `/ws/prices` (JWT required) — poll often like mobile fallback.
+  // Logged-in users get WebSocket ticks; keep a light full-list sync so cards stay aligned.
+  const pricePollMs = isAuthenticated ? 30000 : 2000;
   useEffect(() => {
-    let dead = false;
-    let timer = null;
-
-    const refresh = async () => {
+    const interval = setInterval(async () => {
       try {
         const data = await fetchProducts();
         const list = Array.isArray(data) ? data : data?.items || [];
-        if (!dead) setProducts(list);
-      } catch {
-        // best-effort fallback
-      }
-    };
+        setProducts(list);
+      } catch {}
+    }, pricePollMs);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
-    const schedule = () => {
-      if (dead) return;
-      // If WS is healthy, poll lightly. If WS is down (or unauth), poll faster.
-      const ms = document.hidden ? 25000 : (wsHealthyRef.current ? 15000 : 3000);
-      timer = setTimeout(async () => {
-        await refresh();
-        schedule();
-      }, ms);
-    };
-
-    // Kick once, then continue with adaptive interval.
-    refresh();
-    schedule();
-
-    const onResume = () => {
-      // Force an immediate refresh when tab/app returns to foreground.
-      refresh();
-    };
-    document.addEventListener('visibilitychange', onResume);
-    window.addEventListener('focus', onResume);
-    window.addEventListener('pageshow', onResume);
-
-    return () => {
-      dead = true;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onResume);
-      window.removeEventListener('focus', onResume);
-      window.removeEventListener('pageshow', onResume);
-    };
-  }, []);
-
-  // WebSocket real-time price updates.
-  // If no token is present, still attempt /ws/prices; backend may allow public feed.
-  // If backend rejects it, polling above remains the source of truth.
+  // WebSocket real-time price updates (authenticated users only)
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
+    if (!token) return;
+
     let ws = null;
     let dead = false;
-    let reconnectTimer = null;
-    let reconnectAttempts = 0;
 
-    const connect = () => {
+    // 300ms debounce — absorbs React StrictMode's synchronous mount/unmount/remount
+    // and rapid isAuthenticated flips during auth context init.
+    const timer = setTimeout(() => {
       if (dead) return;
       try {
-        const url = token
-          ? `${config.wsBaseUrl}/ws/prices?token=${token}`
-          : `${config.wsBaseUrl}/ws/prices`;
-        ws = new WebSocket(url);
-      } catch {
-        scheduleReconnect();
-        return;
-      }
-
-      ws.onopen = () => {
-        reconnectAttempts = 0;
-        wsHealthyRef.current = true;
-      };
-
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          const update = msg.type === 'price_update' ? msg.data : msg;
-          if (update.product_id && update.current_price !== undefined) {
-            setProducts((prev) =>
-              prev.map((p) =>
-                (p._id === update.product_id || p.id === update.product_id)
-                  ? { ...p, current_price: update.current_price }
-                  : p
-              )
-            );
-          }
-        } catch {}
-      };
-      ws.onerror = () => {}; // suppress uncaught error events
-      ws.onclose = () => {
-        wsHealthyRef.current = false;
-        scheduleReconnect();
-      };
-      wsRef.current = ws;
-    };
-
-    const scheduleReconnect = () => {
-      if (dead) return;
-      const delay = Math.min(10000, 1000 * (2 ** reconnectAttempts));
-      reconnectAttempts += 1;
-      reconnectTimer = setTimeout(connect, delay);
-    };
-
-    // 300ms debounce — absorbs StrictMode mount/unmount/remount churn.
-    const initialTimer = setTimeout(connect, 300);
+        ws = new WebSocket(`${config.wsBaseUrl}/ws/prices?token=${token}`);
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            const update = msg.type === 'price_update' ? msg.data : msg;
+            if (update.product_id != null && update.current_price !== undefined) {
+              const pid = String(update.product_id);
+              const num = Number(update.current_price);
+              setProducts((prev) =>
+                prev.map((p) => {
+                  const id = p._id != null ? String(p._id) : p.id != null ? String(p.id) : '';
+                  if (id !== pid) return p;
+                  return { ...p, current_price: num, currentPrice: num };
+                })
+              );
+            }
+          } catch {}
+        };
+        ws.onerror = () => {};  // suppress uncaught error events
+        wsRef.current = ws;
+      } catch {}
+    }, 300);
 
     return () => {
       dead = true;
-      wsHealthyRef.current = false;
-      clearTimeout(initialTimer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearTimeout(timer);
       ws?.close();
     };
   }, [isAuthenticated]);
