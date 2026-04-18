@@ -104,10 +104,9 @@ export default function HomePage() {
     setSearchInput(q);
   }, [q]);
 
-  // HTTP refresh: guests have no `/ws/prices` (JWT required) — poll every 2s like mobile fallback.
-  // Logged-in users get WebSocket ticks; keep a light full-list sync.
+  // HTTP refresh: soft sync for everyone; live ticks come from `/ws/prices` (with or without JWT).
   useEffect(() => {
-    const ms = isAuthenticated ? 30000 : 2000;
+    const ms = 30000;
     const interval = setInterval(async () => {
       try {
         const data = await fetchProducts();
@@ -120,10 +119,12 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // WebSocket real-time price updates (authenticated only — gateway requires JWT).
+  // WebSocket real-time price updates (JWT optional — anonymous public stream on gateway).
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    if (!token) return;
+    const wsUrl = token
+      ? `${config.wsBaseUrl}/ws/prices?token=${encodeURIComponent(token)}`
+      : `${config.wsBaseUrl}/ws/prices`;
 
     let ws = null;
     let dead = false;
@@ -131,7 +132,7 @@ export default function HomePage() {
     const timer = setTimeout(() => {
       if (dead) return;
       try {
-        ws = new WebSocket(`${config.wsBaseUrl}/ws/prices?token=${token}`);
+        ws = new WebSocket(wsUrl);
         ws.onmessage = (e) => {
           try {
             const msg = JSON.parse(e.data);
