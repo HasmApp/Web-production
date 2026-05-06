@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MapPin, CreditCard, CheckCircle, ArrowRight,
   Package, ChevronLeft, Clock, ChevronDown, Lock, ExternalLink, Search,
@@ -392,9 +392,12 @@ function AddressStep({ address, setAddress, onNext, canContinue }) {
 // ─── Main checkout ─────────────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { items, total, clearCart } = useCart();
   const { user } = useAuth();
   const { t, tf, lang } = useLanguage();
+  /** Same as mobile PaymentPage.showOfferApprovedMessage — one toast on checkout for auto-approved price request from product page. */
+  const offerApprovedToastShownRef = useRef(false);
 
   const STEPS = useMemo(() => [t('address'), t('payment')], [lang, t]);
   const PAYMENT_METHODS = useMemo(
@@ -436,6 +439,14 @@ export default function CheckoutPage() {
       /* quota / private mode */
     }
   }, [address]);
+
+  useEffect(() => {
+    if (offerApprovedToastShownRef.current) return;
+    if (!location.state?.showOfferApprovedMessage) return;
+    offerApprovedToastShownRef.current = true;
+    toast.success(t('offerApprovedCheckoutToast'));
+    navigate('.', { replace: true, state: {} });
+  }, [location.state, navigate, t]);
 
   // Redirect to cart if empty — must be in useEffect, not during render
   useEffect(() => {

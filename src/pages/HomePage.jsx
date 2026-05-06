@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  TrendingDown, Zap, Gavel, Star, X, Search, BadgeCheck,
+  TrendingDown, Zap, Gavel, Star, X, Search,
   LayoutGrid, Shirt, Home as HomeIcon, Leaf, Car, HardHat,
 } from 'lucide-react';
-import { fetchProducts } from '../services/api.js';
+import { fetchMyPriceRequests, fetchProductById, fetchProducts, fetchAppConfig } from '../services/api.js';
 import ProductCard from '../components/product/ProductCard.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import config from '../config/config.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
+import { useCart } from '../contexts/CartContext.jsx';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
 import { parseProductCategory, formatSubcategoryChipLabel } from '../utils/formatProductCategory.js';
 import { productCountLabel } from '../utils/productCountLabel.js';
@@ -57,10 +58,12 @@ function productMatchesCategory(product, categoryId) {
 }
 
 export default function HomePage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') || '';
   const { isAuthenticated } = useAuth();
   const { t, lang } = useLanguage();
+  const { addItem } = useCart();
   const [searchInput, setSearchInput] = useState(q);
 
   const categoryLabel = (id) => {
@@ -79,6 +82,8 @@ export default function HomePage() {
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState(null);
   const [sort, setSort] = useState('default');
+  const [acceptedOffers, setAcceptedOffers] = useState([]);
+  const [deliveryIsFree, setDeliveryIsFree] = useState(false);
 
   const selectCategory = (id) => {
     setCategory(id);
@@ -99,6 +104,48 @@ export default function HomePage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAppConfig()
+      .then((d) => {
+        if (cancelled) return;
+        const dp = Number(d?.delivery_price);
+        setDeliveryIsFree(Number.isFinite(dp) && dp < 1e-9);
+      })
+      .catch(() => {
+        if (!cancelled) setDeliveryIsFree(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!isAuthenticated) {
+        if (mounted) setAcceptedOffers([]);
+        return;
+      }
+      try {
+        const rows = await fetchMyPriceRequests();
+        const approved = (Array.isArray(rows) ? rows : [])
+          .filter((r) => String(r.status || '').toLowerCase() === 'approved');
+        const entries = [];
+        for (const row of approved) {
+          try {
+            const product = await fetchProductById(row.product_id);
+            entries.push({ request: row, product });
+          } catch {
+            // Skip missing product
+          }
+        }
+        if (mounted) setAcceptedOffers(entries);
+      } catch {
+        if (mounted) setAcceptedOffers([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     setSearchInput(q);
@@ -210,6 +257,23 @@ export default function HomePage() {
       const dropB = ((b.initial_price - pb) / (b.initial_price || 1));
       return dropB - dropA;
     });
+
+  const handleAcceptedOfferClick = (entry) => {
+    // Match mobile home: add to cart and go to checkout with no toast (snackbar only
+    // on checkout when coming from product-page auto-approve flow).
+    const requestQty = Number(entry?.request?.quantity || 1);
+    const offered = Number(entry?.request?.offered_price || 0);
+    const product = entry.product || {};
+    const patched = {
+      ...product,
+      current_price: offered,
+      currentPrice: offered,
+      initial_price: offered,
+      initialPrice: offered,
+    };
+    addItem(patched, requestQty > 0 ? requestQty : 1, 'Full');
+    navigate('/checkout');
+  };
 
   return (
     <div className="min-h-screen">
@@ -597,7 +661,7 @@ export default function HomePage() {
 
             {loading ? (
               <PageLoader />
-            ) : filtered.length === 0 ? (
+            ) : filtered.length === 0 && acceptedOffers.length === 0 ? (
               <EmptyState
                 icon={TrendingDown}
                 title={t('noProductsFound')}
@@ -618,8 +682,20 @@ export default function HomePage() {
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {acceptedOffers.map((entry) => (
+                  <ProductCard
+                    key={`accepted-${entry.request.id}`}
+                    product={entry.product}
+                    deliveryIsFree={deliveryIsFree}
+                    acceptedOffer={{
+                      price: Number(entry.request.offered_price || 0),
+                      quantity: Number(entry.request.quantity || 1) || 1,
+                    }}
+                    onAcceptedClick={() => handleAcceptedOfferClick(entry)}
+                  />
+                ))}
                 {filtered.map((product) => (
-                  <ProductCard key={product._id} product={product} />
+                  <ProductCard key={product._id} product={product} deliveryIsFree={deliveryIsFree} />
                 ))}
               </div>
             )}

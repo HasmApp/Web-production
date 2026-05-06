@@ -13,6 +13,7 @@ import OrdersPage from './pages/OrdersPage.jsx';
 import AuctionPage from './pages/AuctionPage.jsx';
 import FavoritesPage from './pages/FavoritesPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import MyPriceRequestsPage from './pages/MyPriceRequestsPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import OtpPage from './pages/OtpPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
@@ -43,6 +44,11 @@ function AppRoutes() {
       <Route path="/favorites" element={<Layout><FavoritesPage /></Layout>} />
       <Route path="/orders" element={<Layout><OrdersPage /></Layout>} />
       <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
+      <Route path="/price-requests" element={
+        <ProtectedRoute>
+          <Layout><MyPriceRequestsPage /></Layout>
+        </ProtectedRoute>
+      } />
       <Route path="/alerts" element={
         <ProtectedRoute>
           <Layout><AlertsPage /></Layout>

@@ -163,6 +163,24 @@ export const validateCart = async (items) => {
   return res.data;
 };
 
+// ─── Price Requests ───────────────────────────────────────────────────────────
+
+export const createPriceRequest = async ({ product_id, seller_id, quantity, offered_price, message }) => {
+  const res = await api.post('/orders/price-requests/', {
+    product_id,
+    seller_id,
+    quantity,
+    offered_price,
+    ...(message ? { message } : {}),
+  });
+  return res.data;
+};
+
+export const fetchMyPriceRequests = async () => {
+  const res = await api.get('/orders/price-requests/my');
+  return res.data;
+};
+
 /** multipart/form-data — matches mobile `createOrderWithTransferProof`. */
 export const createOrderWithTransferProof = async ({ items, transferProofFile, shippingAddress, shortAddress }) => {
   const form = new FormData();
@@ -222,6 +240,13 @@ export const fetchAlerts = async () => {
 export const createAlert = async (productId, targetPrice) => {
   const res = await api.post('/target-price-alerts/', {
     product_id: productId,
+    target_price: targetPrice,
+  });
+  return res.data;
+};
+
+export const updateAlert = async (alertId, targetPrice) => {
+  const res = await api.put(`/target-price-alerts/${alertId}`, {
     target_price: targetPrice,
   });
   return res.data;

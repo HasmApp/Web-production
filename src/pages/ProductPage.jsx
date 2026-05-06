@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Heart, ShoppingCart, ChevronLeft, Bell, BellOff,
-  Package, Truck, Shield, Star, Check,
+  Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, Tag, X,
+  Package, Truck, Shield, Star, TrendingUp,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { fetchProductById, createAlert, fetchAlerts, deleteAlert, resolveMediaUrl } from '../services/api.js';
+import { fetchProductById, createAlert, updateAlert, fetchAlerts, deleteAlert, resolveMediaUrl, createPriceRequest } from '../services/api.js';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
@@ -43,12 +43,16 @@ export default function ProductPage() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState(0);
-  const [stockOption, setStockOption] = useState('full'); // 'quarter' | 'half' | 'full'
+  const [stockOption, setStockOption] = useState('quarter'); // 'quarter' | 'half' | 'full'
   const [isFav, setIsFav] = useState(false);
   const [alert, setAlert] = useState(null);
   const [alertPrice, setAlertPrice] = useState('');
-  const [showAlertForm, setShowAlertForm] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [showPriceRequestModal, setShowPriceRequestModal] = useState(false);
+  const [reqQuantity, setReqQuantity] = useState('1');
+  const [reqPrice, setReqPrice] = useState('');
+  const [reqMessage, setReqMessage] = useState('');
   /** Unit price frozen when you open this page (from home/card). Same idea as mobile `ProductPage` `_currentPrice`. */
   const [lockedPrice, setLockedPrice] = useState(null);
 
@@ -58,6 +62,7 @@ export default function ProductPage() {
 
   useEffect(() => {
     setLockedPrice(null);
+    setStockOption('quarter');
   }, [id]);
 
   useEffect(() => {
@@ -125,9 +130,17 @@ export default function ProductPage() {
       { key: 'full',    label: t('full'),    qty: product.quantity_full    ?? totalQty },
   ].filter(Boolean).filter((o) => o.qty > 0);
 
-  // Default to last available option (Full preferred)
+  // Default selection is quarter (see useState / id effect); fall back if unavailable
   const activeOption = stockOptions.find((o) => o.key === stockOption) ?? stockOptions[stockOptions.length - 1];
   const selectedQty = activeOption?.qty ?? 0;
+  const msrpUnit = Number(product.msrp ?? product.MSRP);
+  const expectedProfitDiff =
+    Number.isFinite(msrpUnit) &&
+    msrpUnit > current &&
+    Number.isFinite(selectedQty) &&
+    selectedQty > 0
+      ? (msrpUnit - current) * selectedQty
+      : null;
 
   const toggleFav = () => {
     const favs = getFavorites();
@@ -149,12 +162,85 @@ export default function ProductPage() {
 
   const handleSetAlert = async () => {
     if (!isAuthenticated) { toast.error(t('loginPriceAlerts')); return; }
+    const targetPrice = parseFloat(alertPrice);
+    if (!Number.isFinite(targetPrice) || targetPrice <= 0) {
+      toast.error(t('pleaseEnterValidPrice'));
+      return;
+    }
+    if (targetPrice >= current) {
+      toast.error(t('targetPriceMustBeLower'));
+      return;
+    }
     try {
-      const created = await createAlert(product._id, parseFloat(alertPrice));
-      setAlert(created);
-      setShowAlertForm(false);
+      if (alert) {
+        const updated = await updateAlert(alert.id || alert._id, targetPrice);
+        setAlert(updated);
+      } else {
+        const created = await createAlert(product._id, targetPrice);
+        setAlert(created);
+      }
+      setShowAlertModal(false);
       toast.success(tf('alertSetToast', { amount: alertPrice }));
-    } catch { toast.error(t('alertSetFailed')); }
+    } catch {
+      toast.error(t('alertSetFailed'));
+    }
+  };
+
+  const handleSendPriceRequest = async () => {
+    if (!isAuthenticated) {
+      toast.error(t('loginPriceRequest'));
+      return;
+    }
+    const sellerId = product.owner_id || product.owner?.id;
+    if (!sellerId) {
+      toast.error(t('priceRequestUnavailable'));
+      return;
+    }
+    const quantity = Number(reqQuantity);
+    const offered = Number(reqPrice);
+    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(offered) || offered <= 0) {
+      toast.error(t('invalidPriceRequestValues'));
+      return;
+    }
+    try {
+      const created = await createPriceRequest({
+        product_id: product._id || product.id,
+        seller_id: String(sellerId),
+        quantity,
+        offered_price: offered,
+        message: reqMessage.trim() || undefined,
+      });
+      const status = String(created?.status || '').toLowerCase();
+      setShowPriceRequestModal(false);
+      setReqQuantity('1');
+      setReqPrice('');
+      setReqMessage('');
+      if (status === 'approved') {
+        const note = String(created?.decision_note || '').toLowerCase();
+        const showOfferApprovedOnCheckout = note.includes('auto-approved');
+        const unitPrice = Number(created?.offered_price ?? offered);
+        const patched = {
+          ...product,
+          current_price: unitPrice,
+          currentPrice: unitPrice,
+          initial_price: unitPrice,
+          initialPrice: unitPrice,
+        };
+        addItem(
+          patched,
+          quantity > 0 ? quantity : 1,
+          activeOption?.label || 'Full',
+        );
+        // Match mobile PaymentPage(showOfferApprovedMessage): toast once on checkout, not before navigate.
+        navigate('/checkout', {
+          state: showOfferApprovedOnCheckout ? { showOfferApprovedMessage: true } : {},
+        });
+      } else {
+        toast.success(t('priceRequestSent'));
+      }
+    } catch {
+      toast.error(t('priceRequestFailed'));
+    }
   };
 
   const handleRemoveAlert = async () => {
@@ -238,6 +324,31 @@ export default function ProductPage() {
                 <SarAmount amount={initial} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
               </p>
             )}
+            {expectedProfitDiff != null && (
+              <div className="flex w-full justify-start">
+                <div
+                  className="flex max-w-full items-start gap-1.5 text-sm font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
+                  dir={lang === 'ar' ? 'rtl' : 'ltr'}
+                >
+                  <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
+                  <span className="min-w-0 text-start">
+                    {t('expectedProfitDiff')}
+                    {' : '}
+                    <span className="inline-flex items-baseline gap-0 align-middle" dir="ltr">
+                      <SarAmount
+                        amount={expectedProfitDiff}
+                        iconSize={14}
+                        className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
+                        numberClassName="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
+                      />
+                      <span className="font-extrabold text-emerald-600 dark:text-emerald-400" aria-hidden>
+                        +
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stock option selector — always required, no individual pieces */}
@@ -275,9 +386,9 @@ export default function ProductPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
-            <button type="button" onClick={handleAddToCart} className="btn-primary flex-1 py-3 text-base">
-              <ShoppingCart className="w-4 h-4" /> {t('addToCart')}
+          <div className="flex gap-2.5">
+            <button type="button" onClick={handleAddToCart} className="btn-primary flex-1 py-2.5 text-sm">
+              <ShoppingCart className="w-4 h-4 shrink-0" /> {t('addToCart')}
             </button>
             <button
               type="button"
@@ -292,6 +403,56 @@ export default function ProductPage() {
             </button>
           </div>
 
+          {/* Price alert + request: request first in DOM — left in EN (LTR), right in AR (RTL) */}
+          <div className="card p-3 space-y-1.5">
+            <div className="flex gap-2 items-stretch" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    toast.error(t('loginPriceRequest'));
+                    return;
+                  }
+                  setReqQuantity('1');
+                  setReqPrice(Number(current).toFixed(2));
+                  setReqMessage('');
+                  setShowPriceRequestModal(true);
+                }}
+                className="flex-1 min-h-0 rounded-xl px-1 py-1.5 bg-primary text-white shadow-sm transition-opacity hover:opacity-95"
+              >
+                <span className="flex flex-col items-center justify-center gap-0.5">
+                  <Tag className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  <span className="text-center text-[10px] font-semibold leading-tight text-white">
+                    {t('requestOfferCta')}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    toast.error(t('loginAlertsShort'));
+                    return;
+                  }
+                  setAlertPrice(alert ? String(alert.target_price ?? '') : '');
+                  setShowAlertModal(true);
+                }}
+                className={`flex-1 min-h-0 rounded-xl px-1 py-1.5 border-2 bg-white shadow-sm transition-colors dark:bg-gray-800/60 ${
+                  alert
+                    ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 dark:border-emerald-500'
+                    : 'border-primary/55 text-primary dark:text-gray-100'
+                }`}
+              >
+                <span className="flex flex-col items-center justify-center gap-0.5">
+                  <Bell className="h-4 w-4 shrink-0" strokeWidth={2} />
+                  <span className="text-center text-[10px] font-semibold leading-tight">
+                    {alert ? t('updateAlert') : t('setAlert')}
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Tamara ad */}
           <div className="card p-4" dir="ltr">
             <div className="flex items-center gap-4">
@@ -299,65 +460,33 @@ export default function ProductPage() {
                 <img
                   src={lang === 'ar' ? tamaraArUrl : tamaraEnUrl}
                   alt="Tamara"
-                  className="h-9 w-auto object-contain rounded-lg"
+                  className="h-12 sm:h-14 w-auto object-contain rounded-xl"
                 />
               </div>
-              <div className="hidden w-px h-8 bg-gray-200 dark:bg-gray-700 flex-shrink-0 sm:block" />
-              <div className={`flex-1 min-w-0 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{t('tamaraAdHeadline')}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('tamaraAdSub')}</p>
+              <div
+                className={`hidden sm:block w-px h-12 bg-gray-200 dark:bg-gray-700 flex-shrink-0 ${
+                  lang === 'ar' ? 'sm:order-3' : 'sm:order-2'
+                }`}
+              />
+              <div
+                className={`flex-1 min-w-0 text-center ${
+                  lang === 'ar' ? 'sm:order-2 sm:text-right' : 'sm:order-3 sm:text-left'
+                }`}
+              >
+                <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                  {t('tamaraAdHeadline')}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                  {t('tamaraAdSub')}
+                </p>
               </div>
-              <span className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-3 py-1 text-xs font-semibold text-purple-700 dark:text-purple-300 ${lang === 'ar' ? 'order-first' : ''}`}>
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                {t('tamaraAdBadge')}
-              </span>
+              <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-1' : 'sm:order-4'}`}>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-4 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  {t('tamaraAdBadge')}
+                </span>
+              </div>
             </div>
-          </div>
-
-          {/* Price alert */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                <Bell className="w-4 h-4 text-primary" />
-                {t('priceAlert')}
-              </div>
-              {alert ? (
-                <button type="button" onClick={handleRemoveAlert} className="flex items-center gap-1 text-xs text-red-500 hover:underline flex-wrap">
-                  <BellOff className="w-3.5 h-3.5 shrink-0" />
-                  <span className="inline-flex items-center gap-0.5 flex-wrap">
-                    {t('removeAlertShort')} (<SarAmount amount={alert.target_price} iconSize={11} />)
-                  </span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isAuthenticated) { toast.error(t('loginAlertsShort')); return; }
-                    setShowAlertForm(!showAlertForm);
-                  }}
-                  className="text-xs text-primary font-semibold hover:underline"
-                >
-                  {t('setAlert')}
-                </button>
-              )}
-            </div>
-            {showAlertForm && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  type="number"
-                  value={alertPrice}
-                  onChange={(e) => setAlertPrice(e.target.value)}
-                  placeholder={t('alertPlaceholder')}
-                  className="input flex-1 py-2 text-sm"
-                  min="0"
-                  max={current}
-                />
-                <button type="button" onClick={handleSetAlert} disabled={!alertPrice} className="btn-primary py-2 px-3 text-sm">
-                  {t('setButton')}
-                </button>
-              </div>
-            )}
-            <p className="text-xs text-gray-400 mt-2">{t('alertHint')}</p>
           </div>
 
           {/* Trust badges */}
@@ -376,12 +505,191 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {/* Description */}
+      {/* Description — open by default (native details/summary) */}
       {desc && (
         <div className="mt-12">
-          <h2 className="section-title mb-4">{t('productDesc')}</h2>
-          <div className="card p-6">
-            <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm whitespace-pre-line">{desc}</p>
+          <details open className="card overflow-hidden group">
+            <summary className="section-title mb-0 cursor-pointer list-none flex items-center justify-between gap-3 px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <span>{t('productDesc')}</span>
+              <ChevronDown className="w-5 h-5 shrink-0 text-gray-500 transition-transform group-open:rotate-180 dark:text-gray-400" />
+            </summary>
+            <div className="border-t border-gray-100 dark:border-gray-700 px-5 pb-5 pt-3">
+              <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm whitespace-pre-line">{desc}</p>
+            </div>
+          </details>
+        </div>
+      )}
+
+      {showAlertModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowAlertModal(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="alert-modal-title"
+            className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="alert-modal-title" className="text-lg font-bold text-gray-900 dark:text-white">
+                {alert ? t('updateTargetPriceTitle') : t('setTargetPriceTitle')}
+              </h3>
+              <button
+                type="button"
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setShowAlertModal(false)}
+                aria-label={t('cancel')}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-800 dark:text-gray-200" dir="auto">
+              {title}
+            </p>
+            <div className="mt-3 flex flex-wrap items-baseline gap-2 text-sm">
+              <span className="font-medium text-primary">{t('currentPriceLabel')}</span>
+              <SarAmount
+                amount={current}
+                iconSize={14}
+                className="font-semibold text-primary"
+                numberClassName="font-semibold text-primary"
+              />
+            </div>
+            <label htmlFor="alert-target-input" className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('enterTargetPriceLabel')}
+            </label>
+            <input
+              id="alert-target-input"
+              type="number"
+              value={alertPrice}
+              onChange={(e) => setAlertPrice(e.target.value)}
+              placeholder={t('alertPlaceholder')}
+              className="input mt-1 w-full py-2 text-sm"
+              min="0"
+              step="0.01"
+            />
+            <p className="mt-2 text-xs text-gray-400">{t('alertDescription')}</p>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {alert ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleRemoveAlert();
+                    setShowAlertModal(false);
+                  }}
+                  className="text-sm text-red-600 hover:underline dark:text-red-400"
+                >
+                  {t('removeAlertShort')}
+                </button>
+              ) : null}
+              <div className="ms-auto flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
+                  onClick={() => setShowAlertModal(false)}
+                >
+                  {t('cancel')}
+                </button>
+                <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={handleSetAlert}>
+                  {t('setButton')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPriceRequestModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowPriceRequestModal(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="price-req-modal-title"
+            className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="price-req-modal-title" className="text-lg font-bold text-gray-900 dark:text-white">
+                {t('requestPriceFromSeller')}
+              </h3>
+              <button
+                type="button"
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setShowPriceRequestModal(false)}
+                aria-label={t('cancel')}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-800 dark:text-gray-200" dir="auto">
+              {title}
+            </p>
+            <div className="mt-3 flex flex-wrap items-baseline gap-2 text-sm">
+              <span className="font-medium text-primary">{t('currentPriceLabel')}</span>
+              <SarAmount
+                amount={current}
+                iconSize={14}
+                className="font-semibold text-primary"
+                numberClassName="font-semibold text-primary"
+              />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="pr-qty" className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('quantity')}
+                </label>
+                <input
+                  id="pr-qty"
+                  type="number"
+                  min="1"
+                  value={reqQuantity}
+                  onChange={(e) => setReqQuantity(e.target.value)}
+                  className="input mt-1 w-full py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="pr-price" className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('offeredPrice')}
+                </label>
+                <input
+                  id="pr-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={reqPrice}
+                  onChange={(e) => setReqPrice(e.target.value)}
+                  className="input mt-1 w-full py-2 text-sm"
+                />
+              </div>
+            </div>
+            <label htmlFor="pr-msg" className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-400">
+              {t('messageOptional')}
+            </label>
+            <textarea
+              id="pr-msg"
+              value={reqMessage}
+              onChange={(e) => setReqMessage(e.target.value)}
+              className="input mt-1 min-h-[80px] w-full py-2 text-sm"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
+                onClick={() => setShowPriceRequestModal(false)}
+              >
+                {t('cancel')}
+              </button>
+              <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={handleSendPriceRequest}>
+                {t('sendRequest')}
+              </button>
+            </div>
           </div>
         </div>
       )}

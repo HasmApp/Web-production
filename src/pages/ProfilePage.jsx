@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  User, Phone, Mail, LogOut, Package, Heart, Bell,
+  User, Phone, Mail, LogOut, Package, Heart, Bell, HandCoins,
   ChevronRight, Trash2, Sun, Moon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -111,6 +111,7 @@ export default function ProfilePage() {
         <ProfileRow icon={Package} label={t('myOrders')} value={t('orders')} onClick={() => navigate('/orders')} />
         <ProfileRow icon={Heart} label={t('favorites')} value={t('favorites')} onClick={() => navigate('/favorites')} />
         <ProfileRow icon={Bell} label={t('priceAlerts')} value={t('priceAlerts')} onClick={() => navigate('/alerts')} />
+        <ProfileRow icon={HandCoins} label={t('myPriceRequests')} value={t('myPriceRequests')} onClick={() => navigate('/price-requests')} />
       </div>
 
       {/* Settings */}
