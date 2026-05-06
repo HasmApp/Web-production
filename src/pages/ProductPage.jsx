@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, Tag, X,
@@ -33,6 +33,25 @@ const getSupplierDisplayName = (p) => {
   return '';
 };
 
+/** At most two fraction digits, matching DB NUMERIC(10,2) / cent precision. */
+const sanitizeOfferedPriceInput = (raw) => {
+  const text = String(raw ?? '').replace(/[^\d.]/g, '');
+  if (text === '') return '';
+  const parts = text.split('.');
+  if (parts.length > 2) {
+    const before = (parts[0] ?? '').slice(0, 12);
+    const after = parts.slice(1).join('').slice(0, 2);
+    return after ? `${before}.${after}` : `${before}.`;
+  }
+  let before = parts[0] ?? '';
+  let after = parts.length > 1 ? parts[1] : '';
+  if (before.length > 12) before = before.slice(0, 12);
+  if (after.length > 2) after = after.slice(0, 2);
+  if (parts.length > 1 && after === '') return `${before}.`;
+  if (after === '') return before;
+  return `${before}.${after}`;
+};
+
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -64,6 +83,39 @@ export default function ProductPage() {
     setLockedPrice(null);
     setStockOption('quarter');
   }, [id]);
+
+  const stockOptions = useMemo(() => {
+    if (!product) return [];
+    const totalQty = product.quantity ?? product.stock ?? 0;
+    const fromEndedAuction =
+      product.from_ended_auction === true || product.from_ended_auction === 1;
+    const bundleFullLotOnly =
+      product.bundle_full_lot_only === true || product.bundle_full_lot_only === 1;
+    const sellFullOnly =
+      product.sell_full_quantity_only === true || product.sell_full_quantity_only === 1;
+    /* Post-auction singles: relax allow_* so quarter/half/full show. Bundles stay full-lot-only. */
+    const relaxFullStockFlags = fromEndedAuction && !bundleFullLotOnly;
+    const hasExplicitFlags =
+      product.allow_quarter_quantity !== undefined ||
+      product.allow_half_quantity !== undefined ||
+      product.allow_full_quantity !== undefined;
+    return [
+      (relaxFullStockFlags || (hasExplicitFlags ? product.allow_quarter_quantity : true)) &&
+        { key: 'quarter', label: t('quarter'), qty: product.quantity_quarter ?? Math.floor(totalQty / 4) },
+      (relaxFullStockFlags || (hasExplicitFlags ? product.allow_half_quantity : true)) &&
+        { key: 'half', label: t('half'), qty: product.quantity_half ?? Math.floor(totalQty / 2) },
+      (relaxFullStockFlags || (hasExplicitFlags ? product.allow_full_quantity !== false : true)) &&
+        { key: 'full', label: t('full'), qty: product.quantity_full ?? totalQty },
+    ]
+      .filter(Boolean)
+      .filter((o) => o.qty > 0);
+  }, [product, t]);
+
+  useEffect(() => {
+    if (stockOptions.length !== 1) return;
+    const only = stockOptions[0].key;
+    setStockOption((prev) => (prev === only ? prev : only));
+  }, [id, stockOptions]);
 
   useEffect(() => {
     const load = async () => {
@@ -109,30 +161,18 @@ export default function ProductPage() {
   const initial = product.initial_price ?? product.initialPrice ?? 0;
   const supplierName = getSupplierDisplayName(product);
 
-  // All products use stock options — no individual pieces allowed.
-  const totalQty = product.quantity ?? product.stock ?? 0;
-  const fromEndedAuction =
-    product.from_ended_auction === true || product.from_ended_auction === 1;
-  const sellFullOnly =
-    product.sell_full_quantity_only === true || product.sell_full_quantity_only === 1;
-  /** Same rule as product-service: post–auction full-stock shows quarter/half/full. */
-  const relaxFullStockFlags = fromEndedAuction && sellFullOnly;
-  const hasExplicitFlags =
-    product.allow_quarter_quantity !== undefined ||
-    product.allow_half_quantity !== undefined ||
-    product.allow_full_quantity !== undefined;
-  const stockOptions = [
-    (relaxFullStockFlags || (hasExplicitFlags ? product.allow_quarter_quantity : true)) &&
-      { key: 'quarter', label: t('quarter'), qty: product.quantity_quarter ?? Math.floor(totalQty / 4) },
-    (relaxFullStockFlags || (hasExplicitFlags ? product.allow_half_quantity : true)) &&
-      { key: 'half',    label: t('half'),    qty: product.quantity_half    ?? Math.floor(totalQty / 2) },
-    (relaxFullStockFlags || (hasExplicitFlags ? product.allow_full_quantity !== false : true)) &&
-      { key: 'full',    label: t('full'),    qty: product.quantity_full    ?? totalQty },
-  ].filter(Boolean).filter((o) => o.qty > 0);
-
-  // Default selection is quarter (see useState / id effect); fall back if unavailable
+  // Default selection is quarter when multiple options exist (see useState / id effect); fall back if unavailable
   const activeOption = stockOptions.find((o) => o.key === stockOption) ?? stockOptions[stockOptions.length - 1];
   const selectedQty = activeOption?.qty ?? 0;
+  const sellFullOnly =
+    product.sell_full_quantity_only === true || product.sell_full_quantity_only === 1;
+  const fromEndedAuction =
+    product.from_ended_auction === true || product.from_ended_auction === 1;
+  /** Package / full-lot listing: only the full tier (including bundle after auction once API flags are correct). */
+  const isBundlePackageProduct =
+    sellFullOnly &&
+    stockOptions.length === 1 &&
+    stockOptions[0]?.key === 'full';
   const msrpUnit = Number(product.msrp ?? product.MSRP);
   const expectedProfitDiff =
     Number.isFinite(msrpUnit) &&
@@ -197,8 +237,13 @@ export default function ProductPage() {
       return;
     }
     const quantity = Number(reqQuantity);
-    const offered = Number(reqPrice);
-    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(offered) || offered <= 0) {
+    const offeredRaw = Number(reqPrice);
+    const offeredCents = Math.round(offeredRaw * 100);
+    const offered = offeredCents / 100;
+    if (
+      !Number.isFinite(quantity) || quantity <= 0
+      || !Number.isFinite(offeredRaw) || !Number.isFinite(offered) || offered <= 0
+    ) {
       toast.error(t('invalidPriceRequestValues'));
       return;
     }
@@ -309,17 +354,27 @@ export default function ProductPage() {
           </div>
 
           {/* Price block */}
-          <div className="card p-5 space-y-4">
-            <div className="flex items-end gap-3 flex-wrap">
+          <div className="card p-5 space-y-4 text-start">
+            {isBundlePackageProduct && selectedQty > 0 ? (
+              <span
+                className="inline-flex min-h-[2.25rem] min-w-[2.5rem] items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3.5 py-1.5 text-xs font-bold text-gray-900 shadow-sm tabular-nums dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:shadow-none"
+                dir="auto"
+              >
+                <Package className="h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2.25} aria-hidden />
+                {tf('packageDealQuantity', { quantity: selectedQty })}
+              </span>
+            ) : null}
+            {/* No dir=ltr on wrapper: SarAmount isolates bidi; justify-start follows RTL so the price sits on the logical start (right in Arabic). */}
+            <div className="flex w-full justify-start items-baseline gap-3 flex-wrap">
               <SarAmount
                 amount={current}
                 iconSize={26}
-                className="text-4xl font-extrabold text-primary items-end"
+                className="text-4xl font-extrabold text-primary items-baseline"
                 numberClassName="text-4xl font-extrabold text-primary"
               />
             </div>
             {initial > current && (
-              <p className="text-sm text-gray-400 line-through flex items-center gap-1 flex-wrap">
+              <p className="text-sm text-gray-400 line-through flex w-full justify-start items-baseline gap-1 flex-wrap">
                 <span>{t('was')}</span>
                 <SarAmount amount={initial} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
               </p>
@@ -327,55 +382,58 @@ export default function ProductPage() {
             {expectedProfitDiff != null && (
               <div className="flex w-full justify-start">
                 <div
-                  className="flex max-w-full items-start gap-1.5 text-sm font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
+                  className="flex max-w-full flex-wrap items-baseline gap-1.5 text-start text-sm font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
                   dir={lang === 'ar' ? 'rtl' : 'ltr'}
                 >
-                  <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
-                  <span className="min-w-0 text-start">
+                  <TrendingUp className="h-4 w-4 shrink-0 self-center text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
+                  <span className="min-w-0 shrink" dir="auto">
                     {t('expectedProfitDiff')}
                     {' : '}
-                    <span className="inline-flex items-baseline gap-0 align-middle" dir="ltr">
-                      <SarAmount
-                        amount={expectedProfitDiff}
-                        iconSize={14}
-                        className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
-                        numberClassName="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
-                      />
-                      <span className="font-extrabold text-emerald-600 dark:text-emerald-400" aria-hidden>
-                        +
-                      </span>
-                    </span>
                   </span>
+                  <SarAmount
+                    amount={expectedProfitDiff}
+                    iconSize={14}
+                    prefix="+"
+                    className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
+                    numberClassName="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
+                  />
                 </div>
               </div>
             )}
           </div>
 
-          {/* Stock option selector — always required, no individual pieces */}
+          {/* Stock option selector — hidden when only full quantity (e.g. package products) */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('selectStockOption')}</label>
+            {stockOptions.length > 1 ? (
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('selectStockOption')}</label>
+            ) : null}
             {stockOptions.length > 0 ? (
               <>
-                <div className="flex gap-3">
-                  {stockOptions.map(({ key, label, qty }) => (
-                    <button
-                      type="button"
-                      key={key}
-                      onClick={() => setStockOption(key)}
-                      className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
-                        (activeOption?.key === key)
-                          ? 'border-primary bg-primary-50 dark:bg-primary-900/20 text-primary'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
-                      }`}
-                    >
-                      <div>{label}</div>
-                      <div className="text-xs font-normal mt-0.5 opacity-70">{tf('qtyShort', { n: qty })}</div>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm text-gray-500 mt-2 flex flex-wrap items-center gap-1">
+                {stockOptions.length > 1 ? (
+                  <div className="flex gap-3">
+                    {stockOptions.map(({ key, label, qty }) => (
+                      <button
+                        type="button"
+                        key={key}
+                        onClick={() => setStockOption(key)}
+                        className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
+                          (activeOption?.key === key)
+                            ? 'border-primary bg-primary-50 dark:bg-primary-900/20 text-primary'
+                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                        }`}
+                      >
+                        <div>{label}</div>
+                        <div className="text-xs font-normal mt-0.5 opacity-70">{tf('qtyShort', { n: qty })}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <p
+                  className={`text-sm text-gray-500 flex flex-wrap items-center gap-1 ${stockOptions.length > 1 ? 'mt-2' : ''}`}
+                  dir="auto"
+                >
                   <span>{t('totalLine')}</span>
-                  <strong className="text-gray-900 dark:text-white inline-flex items-center">
+                  <strong className="text-gray-900 dark:text-white inline-flex items-center" dir="ltr">
                     <SarAmount amount={current * selectedQty} iconSize={14} className="text-gray-900 dark:text-white" numberClassName="font-bold text-gray-900 dark:text-white" />
                   </strong>
                 </p>
@@ -664,7 +722,7 @@ export default function ProductPage() {
                   min="0"
                   step="0.01"
                   value={reqPrice}
-                  onChange={(e) => setReqPrice(e.target.value)}
+                  onChange={(e) => setReqPrice(sanitizeOfferedPriceInput(e.target.value))}
                   className="input mt-1 w-full py-2 text-sm"
                 />
               </div>

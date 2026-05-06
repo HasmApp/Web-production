@@ -54,8 +54,8 @@ function AuctionCard({ room, onOpen }) {
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpen(room.id || room._id); }}
     >
-      {/* Image — large preview */}
-      <div className="relative w-full aspect-[4/3] min-h-[200px] sm:min-h-[260px] md:min-h-[300px] max-h-[min(48vh,480px)] bg-gray-50 dark:bg-gray-800 overflow-hidden flex items-center justify-center p-4 sm:p-6">
+      {/* Image — compact preview */}
+      <div className="relative w-full aspect-[4/3] min-h-[160px] sm:min-h-[200px] md:min-h-[220px] max-h-[min(40vh,380px)] bg-gray-50 dark:bg-gray-800 overflow-hidden flex items-center justify-center p-3 sm:p-4">
         {image ? (
           <img
             src={image}
@@ -63,57 +63,57 @@ function AuctionCard({ room, onOpen }) {
             className="max-h-full max-w-full w-auto h-auto object-contain group-hover:scale-[1.02] transition-transform duration-500"
           />
         ) : (
-          <div className="w-full h-full min-h-[180px] flex items-center justify-center">
-            <Package className="w-16 h-16 text-gray-300" strokeWidth={1} />
+          <div className="w-full h-full min-h-[140px] flex items-center justify-center">
+            <Package className="w-12 h-12 sm:w-14 sm:h-14 text-gray-300" strokeWidth={1} />
           </div>
         )}
 
         {/* LIVE badge */}
-        <div className="absolute top-3 start-3 flex items-center gap-2 bg-red-500 text-white text-sm sm:text-base font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full shadow">
-          <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse shrink-0" />
+        <div className="absolute top-2.5 start-2.5 flex items-center gap-1.5 bg-red-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shadow">
+          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white animate-pulse shrink-0" />
           {t('liveBadge')}
         </div>
 
         {/* Countdown — uses time_remaining seed (mirrors mobile) */}
-        <div className="absolute bottom-3 end-3 bg-black/65 backdrop-blur-sm text-white px-3 py-2 rounded-full">
+        <div className="absolute bottom-2.5 end-2.5 bg-black/65 backdrop-blur-sm text-white px-2.5 py-1.5 rounded-full">
           <CountdownTimer
             timeRemaining={timeRemaining}
             endTime={endTime}
-            className="text-white !text-base sm:!text-lg"
+            className="text-white !text-sm sm:!text-base"
           />
         </div>
       </div>
 
       {/* Info */}
-      <div className="p-5 sm:p-6 space-y-4">
-        <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white line-clamp-2 leading-snug">
+      <div className="p-4 sm:p-5 space-y-3">
+        <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white line-clamp-2 leading-snug">
           {title}
         </h3>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-2xl p-3 sm:p-4">
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-1.5 font-semibold">{t('currentBid')}</p>
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <div className="bg-primary-50 dark:bg-primary-900/20 rounded-xl p-2.5 sm:p-3">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-1 font-semibold">{t('currentBid')}</p>
             <SarAmount
               amount={currentPrice}
-              iconSize={22}
-              className="text-xl sm:text-2xl font-extrabold text-primary"
-              numberClassName="text-xl sm:text-2xl font-extrabold text-primary tabular-nums"
+              iconSize={18}
+              className="text-lg sm:text-xl font-extrabold text-primary"
+              numberClassName="text-lg sm:text-xl font-extrabold text-primary tabular-nums"
             />
           </div>
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-3 sm:p-4">
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 flex items-center gap-1.5 mb-1.5 font-semibold">
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> {t('bidsLabel')}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-2.5 sm:p-3">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1.5 mb-1 font-semibold">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> {t('bidsLabel')}
             </p>
-            <p className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white tabular-nums">
+            <p className="text-lg sm:text-xl font-extrabold text-gray-900 dark:text-white tabular-nums">
               {bidCount}
             </p>
           </div>
         </div>
 
         {/* Open detail CTA */}
-        <div className="btn-primary w-full py-3.5 sm:py-4 text-base sm:text-lg font-bold flex items-center justify-center gap-2.5 pointer-events-none">
-          <Gavel className="w-5 h-5 sm:w-6 sm:h-6" />
+        <div className="btn-primary w-full py-2.5 sm:py-3 text-sm sm:text-base font-bold flex items-center justify-center gap-2 pointer-events-none">
+          <Gavel className="w-4 h-4 sm:w-5 sm:h-5" />
           {t('viewAndBid')}
         </div>
       </div>
@@ -377,7 +377,7 @@ export default function AuctionPage() {
             description={t('noLiveAuctionsDesc')}
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
             {auctions.map((room) => (
               <AuctionCard
                 key={room.id || room._id}
@@ -401,7 +401,7 @@ export default function AuctionPage() {
           action={<button type="button" onClick={() => setTab('live')} className="btn-primary">{t('browseAuctionsBtn')}</button>}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
           {wins.map((room) => {
             const winTitle =
               lang === 'ar'
@@ -415,33 +415,33 @@ export default function AuctionPage() {
                 className="card overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => setOpenRoomId(room.id || room._id)}
               >
-                <div className="relative w-full aspect-[4/3] min-h-[200px] sm:min-h-[260px] md:min-h-[300px] max-h-[min(48vh,480px)] bg-gray-50 dark:bg-gray-800 overflow-hidden flex items-center justify-center p-4 sm:p-6">
+                <div className="relative w-full aspect-[4/3] min-h-[160px] sm:min-h-[200px] md:min-h-[220px] max-h-[min(40vh,380px)] bg-gray-50 dark:bg-gray-800 overflow-hidden flex items-center justify-center p-3 sm:p-4">
                   {winImage ? (
                     <img src={winImage} alt={winTitle} className="max-h-full max-w-full w-auto h-auto object-contain" />
                   ) : (
-                    <div className="w-full h-full min-h-[180px] flex items-center justify-center">
-                      <Package className="w-16 h-16 text-gray-300" strokeWidth={1} />
+                    <div className="w-full h-full min-h-[140px] flex items-center justify-center">
+                      <Package className="w-12 h-12 sm:w-14 sm:h-14 text-gray-300" strokeWidth={1} />
                     </div>
                   )}
-                  <div className="absolute top-3 start-3 flex items-center gap-2 bg-emerald-500 text-white text-sm sm:text-base font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full">
-                    <Trophy className="w-5 h-5 shrink-0" /> {t('wonBadge')}
+                  <div className="absolute top-2.5 start-2.5 flex items-center gap-1.5 bg-emerald-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
+                    <Trophy className="w-4 h-4 shrink-0" /> {t('wonBadge')}
                   </div>
                 </div>
-                <div className="p-5 sm:p-6">
-                  <h3 className="font-bold text-gray-900 dark:text-white line-clamp-2 text-lg sm:text-xl mb-3 leading-snug">{winTitle}</h3>
+                <div className="p-4 sm:p-5">
+                  <h3 className="font-bold text-gray-900 dark:text-white line-clamp-2 text-base sm:text-lg mb-2 leading-snug">{winTitle}</h3>
                   <SarAmount
                     amount={winPrice}
-                    iconSize={22}
-                    className="text-xl sm:text-2xl font-extrabold text-primary"
-                    numberClassName="text-xl sm:text-2xl font-extrabold text-primary tabular-nums"
+                    iconSize={18}
+                    className="text-lg sm:text-xl font-extrabold text-primary"
+                    numberClassName="text-lg sm:text-xl font-extrabold text-primary tabular-nums"
                   />
                   <button
                     type="button"
                     disabled={Boolean(cartSyncingId)}
                     onClick={(e) => goToCartWithAuctionWin(room, e)}
-                    className="btn-primary w-full mt-4 text-base sm:text-lg font-bold py-3.5 sm:py-4 flex items-center justify-center gap-2.5 disabled:opacity-60"
+                    className="btn-primary w-full mt-3 text-sm sm:text-base font-bold py-2.5 sm:py-3 flex items-center justify-center gap-2 disabled:opacity-60"
                   >
-                    <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
                     {cartSyncingId === (room.id || room._id) ? t('loading') : t('goToCart')}
                   </button>
                 </div>

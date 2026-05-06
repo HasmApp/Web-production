@@ -7,8 +7,7 @@ export default function CurrencyIcon({ size = 16, color = 'currentColor', classN
       width={size}
       height={size}
       viewBox="0 0 1124.14 1256.39"
-      className={className}
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
+      className={`block shrink-0 ${className}`.trim()}
       aria-hidden
     >
       <defs>

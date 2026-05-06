@@ -10,6 +10,8 @@ export default function SarAmount({
   className = '',
   iconClassName = '',
   numberClassName = '',
+  iconPosition = 'start',
+  prefix = '',
 }) {
   const { isRTL } = useLanguage();
   const n = parseFloat(amount ?? 0);
@@ -23,19 +25,19 @@ export default function SarAmount({
   return (
     <span
       className={`inline-flex items-center gap-0.5 ${isRTL ? 'currency-rtl' : ''} ${className}`.trim()}
-      style={{ direction: 'ltr', unicodeBidi: 'isolate', lineHeight: 1 }}
+      style={{
+        direction: 'ltr',
+        unicodeBidi: 'isolate',
+        /* Latin digits always use Inter so AR pages match EN sizing/alignment (Tajawal digits sit high/small next to the icon). */
+        fontFamily: "'Inter', system-ui, sans-serif",
+      }}
     >
       <CurrencyIcon
         size={iconSize}
         color="currentColor"
-        className={`flex-shrink-0 opacity-90 ${iconClassName}`.trim()}
+        className={`shrink-0 opacity-90 ${iconClassName}`.trim()}
       />
-      <span
-        className={`tabular-nums translate-y-px ${numberClassName}`.trim()}
-        style={{ lineHeight: 1 }}
-      >
-        {formatted}
-      </span>
+      <span className={`tabular-nums leading-none ${numberClassName}`.trim()}>{formatted}</span>
     </span>
   );
 }

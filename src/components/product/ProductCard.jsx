@@ -166,28 +166,24 @@ export default function ProductCard({
               />
             </p>
           )}
-          {expectedProfitDiff != null && (
+          {expectedProfitDiff != null && !isAccepted && (
             <div className="mt-0.5 flex w-full justify-start">
               <div
-                className="flex max-w-full items-start gap-1 text-[11px] font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
+                className="flex max-w-full flex-wrap items-baseline gap-1 text-start text-[11px] font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
                 dir={lang === 'ar' ? 'rtl' : 'ltr'}
               >
-                <TrendingUp className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
-                <span className="min-w-0 text-start">
+                <TrendingUp className="h-3 w-3 shrink-0 self-center text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
+                <span className="min-w-0 shrink" dir="auto">
                   {t('expectedProfitDiff')}
                   {' : '}
-                  <span className="inline-flex items-baseline gap-0 align-middle" dir="ltr">
-                    <SarAmount
-                      amount={expectedProfitDiff}
-                      iconSize={11}
-                      className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
-                      numberClassName="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
-                    />
-                    <span className="font-extrabold text-emerald-600 dark:text-emerald-400" aria-hidden>
-                      +
-                    </span>
-                  </span>
                 </span>
+                <SarAmount
+                  amount={expectedProfitDiff}
+                  iconSize={11}
+                  prefix="+"
+                  className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
+                  numberClassName="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
+                />
               </div>
             </div>
           )}
