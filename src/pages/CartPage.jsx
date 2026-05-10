@@ -7,6 +7,9 @@ import { useLanguage } from '../contexts/LanguageContext.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
+import { displayStockTierLabel } from '../utils/stockTierLabel.js';
+import { isPickupOnlyProduct } from '../utils/productFlags.js';
+import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 import toast from 'react-hot-toast';
 
 export default function CartPage() {
@@ -77,11 +80,16 @@ export default function CartPage() {
               <p className="text-xs text-gray-400 mt-0.5" dir="auto">
                 {formatProductCategory(product.category || '', t)}
               </p>
+              {isPickupOnlyProduct(product) ? (
+                <div className="mt-2">
+                  <PickupOnlyBadge size="md" />
+                </div>
+              ) : null}
 
               <div className="flex items-center gap-1.5 mt-2">
                 <Tag className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-semibold text-primary">
-                  {stockLabel} — {tf('cartLineUnits', { n: quantity })}
+                <span className="text-xs font-semibold text-primary" dir="auto">
+                  {displayStockTierLabel(stockLabel, t)} — {tf('cartLineUnits', { n: quantity })}
                 </span>
               </div>
 

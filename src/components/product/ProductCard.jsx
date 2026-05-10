@@ -6,6 +6,8 @@ import { resolveMediaUrl } from '../../services/api.js';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import SarAmount from '../common/SarAmount.jsx';
 import { formatProductCategory } from '../../utils/formatProductCategory.js';
+import { isPickupOnlyProduct } from '../../utils/productFlags.js';
+import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
 
 const FAVORITES_KEY = 'hasm_favorites';
 
@@ -75,6 +77,7 @@ export default function ProductCard({
     fullStockQty > 0
       ? (msrpUnit - current) * fullStockQty
       : null;
+  const pickupOnly = isPickupOnlyProduct(product);
 
   const shellClass = `group flex flex-col min-w-0 text-start no-underline text-inherit rounded-xl bg-white dark:bg-gray-900 shadow-md transition-all duration-300 hover:opacity-[0.97] ${
     isAccepted
@@ -193,7 +196,12 @@ export default function ProductCard({
               {t('acceptedOffer')}
             </div>
           ) : null}
-          {!isAccepted && deliveryIsFree ? (
+          {!isAccepted && pickupOnly ? (
+            <div className="mt-1.5">
+              <PickupOnlyBadge />
+            </div>
+          ) : null}
+          {!isAccepted && deliveryIsFree && !pickupOnly ? (
             <div className="mt-1.5 inline-flex max-w-full items-center gap-0.5 rounded bg-primary px-1.5 py-0.5 text-[8px] font-bold text-white">
               <Truck className="h-2.5 w-2.5 shrink-0" strokeWidth={2.5} aria-hidden />
               <span className="leading-tight">{t('badgeFreeDelivery')}</span>

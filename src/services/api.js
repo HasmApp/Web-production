@@ -181,12 +181,34 @@ export const fetchMyPriceRequests = async () => {
   return res.data;
 };
 
+// ─── Sample Requests ─────────────────────────────────────────────────────────
+
+export const createSampleRequest = async ({ product_id, seller_id, message }) => {
+  const res = await api.post('/orders/sample-requests/', {
+    product_id,
+    seller_id,
+    ...(message ? { message } : {}),
+  });
+  return res.data;
+};
+
 /** multipart/form-data — matches mobile `createOrderWithTransferProof`. */
-export const createOrderWithTransferProof = async ({ items, transferProofFile, shippingAddress, shortAddress }) => {
+export const createOrderWithTransferProof = async ({
+  items,
+  transferProofFile,
+  shippingAddress,
+  shortAddress,
+  pickupOnlyCheckout,
+}) => {
   const form = new FormData();
   form.append('items', JSON.stringify(items));
-  if (shippingAddress) form.append('shipping_address', shippingAddress);
-  if (shortAddress) form.append('short_address', shortAddress);
+  if (pickupOnlyCheckout) {
+    form.append('pickup_only_checkout', 'true');
+    if (shippingAddress) form.append('shipping_address', shippingAddress);
+  } else {
+    if (shippingAddress) form.append('shipping_address', shippingAddress);
+    if (shortAddress) form.append('short_address', shortAddress);
+  }
   form.append('transfer_proof', transferProofFile, transferProofFile.name);
   const token = localStorage.getItem('accessToken') || '';
   const res = await fetch(`${config.apiBaseUrl}/api/orders/with-transfer-proof`, {

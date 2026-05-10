@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TrendingDown, Zap, Gavel, Star, X, Search,
-  LayoutGrid, Shirt, Home as HomeIcon, Leaf, Car, HardHat,
+  LayoutGrid, Shirt, Home as HomeIcon, Leaf, Car, HardHat, UtensilsCrossed,
 } from 'lucide-react';
 import { fetchMyPriceRequests, fetchProductById, fetchProducts, fetchAppConfig } from '../services/api.js';
 import ProductCard from '../components/product/ProductCard.jsx';
@@ -21,6 +21,7 @@ const CATEGORIES = [
   { id: '', labelKey: 'all', icon: LayoutGrid },
   { id: 'Fashion', labelKey: 'catFashion', icon: Shirt },
   { id: 'HomeLiving', labelKey: 'catHomeLiving', icon: HomeIcon },
+  { id: 'Kitchen', labelKey: 'catKitchen', icon: UtensilsCrossed },
   { id: 'LifeStyle', labelKey: 'catLifestyle', icon: Leaf },
   { id: 'Automotive', labelKey: 'catAutomotive', icon: Car },
   { id: 'Construction', labelKey: 'catConstruction', icon: HardHat },
@@ -37,7 +38,8 @@ const SUBCATEGORIES = {
     'Shoes',
     'Other',
   ],
-  HomeLiving: ['Bedding', 'Home Essentials', 'Kitchen Tools', 'Home Decor', 'Other'],
+  HomeLiving: ['Bedding', 'Home Essentials', 'Home Decor', 'Other'],
+  Kitchen: ['Coffee Tools', 'Restaurant Tools', 'Kitchen Tools', 'Foods', 'Other'],
   LifeStyle: ['Tech Accessories', 'Office Supplies', "Kids' Toys", 'Other'],
   Automotive: ['Car Accessories', 'Equipment', 'Other'],
   Construction: ['Building Materials', 'Power Tools', 'Plumbing Tools', 'Construction Tools', 'Other'],

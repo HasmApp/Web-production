@@ -2,10 +2,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, Tag, X,
-  Package, Truck, Shield, Star, TrendingUp,
+  Package, Truck, Shield, Star, TrendingUp, Warehouse,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { fetchProductById, createAlert, updateAlert, fetchAlerts, deleteAlert, resolveMediaUrl, createPriceRequest } from '../services/api.js';
+import {
+  fetchProductById,
+  createAlert,
+  updateAlert,
+  fetchAlerts,
+  deleteAlert,
+  resolveMediaUrl,
+  createPriceRequest,
+  createSampleRequest,
+} from '../services/api.js';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
@@ -13,6 +22,8 @@ import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
+import { isPickupOnlyProduct } from '../utils/productFlags.js';
+import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 
 const FAVORITES_KEY = 'hasm_favorites';
 const getFavorites = () => {
@@ -72,6 +83,8 @@ export default function ProductPage() {
   const [reqQuantity, setReqQuantity] = useState('1');
   const [reqPrice, setReqPrice] = useState('');
   const [reqMessage, setReqMessage] = useState('');
+  const [showSampleRequestModal, setShowSampleRequestModal] = useState(false);
+  const [sampleReqMessage, setSampleReqMessage] = useState('');
   /** Unit price frozen when you open this page (from home/card). Same idea as mobile `ProductPage` `_currentPrice`. */
   const [lockedPrice, setLockedPrice] = useState(null);
 
@@ -160,6 +173,7 @@ export default function ProductPage() {
       : (product.current_price ?? product.currentPrice ?? 0);
   const initial = product.initial_price ?? product.initialPrice ?? 0;
   const supplierName = getSupplierDisplayName(product);
+  const pickupOnly = isPickupOnlyProduct(product);
 
   // Default selection is quarter when multiple options exist (see useState / id effect); fall back if unavailable
   const activeOption = stockOptions.find((o) => o.key === stockOption) ?? stockOptions[stockOptions.length - 1];
@@ -288,6 +302,30 @@ export default function ProductPage() {
     }
   };
 
+  const handleSendSampleRequest = async () => {
+    if (!isAuthenticated) {
+      toast.error(t('loginSampleRequest'));
+      return;
+    }
+    const sellerId = product.owner_id || product.owner?.id;
+    if (!sellerId) {
+      toast.error(t('priceRequestUnavailable'));
+      return;
+    }
+    try {
+      await createSampleRequest({
+        product_id: product._id || product.id,
+        seller_id: String(sellerId),
+        message: sampleReqMessage.trim() || undefined,
+      });
+      setShowSampleRequestModal(false);
+      setSampleReqMessage('');
+      toast.success(t('sampleRequestSent'));
+    } catch {
+      toast.error(t('sampleRequestFailed'));
+    }
+  };
+
   const handleRemoveAlert = async () => {
     try {
       await deleteAlert(alert.id || alert._id);
@@ -400,6 +438,11 @@ export default function ProductPage() {
                 </div>
               </div>
             )}
+            {pickupOnly ? (
+              <div className="pt-1">
+                <PickupOnlyBadge size="md" />
+              </div>
+            ) : null}
           </div>
 
           {/* Stock option selector — hidden when only full quantity (e.g. package products) */}
@@ -509,6 +552,26 @@ export default function ProductPage() {
                 </span>
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast.error(t('loginSampleRequest'));
+                  return;
+                }
+                const sellerId = product.owner_id || product.owner?.id;
+                if (!sellerId) {
+                  toast.error(t('priceRequestUnavailable'));
+                  return;
+                }
+                setSampleReqMessage('');
+                setShowSampleRequestModal(true);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary/55 bg-white py-2.5 text-xs font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 dark:bg-gray-800/60 dark:text-gray-100 dark:hover:bg-gray-800"
+            >
+              <Package className="h-4 w-4 shrink-0" strokeWidth={2} />
+              {t('sampleRequestCta')}
+            </button>
           </div>
 
           {/* Tamara ad */}
@@ -550,7 +613,9 @@ export default function ProductPage() {
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-3 text-center">
             {[
-              { icon: Truck, label: t('fastDelivery') },
+              pickupOnly
+                ? { icon: Warehouse, label: t('badgePickupOnly') }
+                : { icon: Truck, label: t('fastDelivery') },
               { icon: Shield, label: t('securePayment') },
               { icon: Star, label: t('qualityProducts') },
             ].map(({ icon: Icon, label }) => (
@@ -745,6 +810,66 @@ export default function ProductPage() {
                 {t('cancel')}
               </button>
               <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={handleSendPriceRequest}>
+                {t('sendRequest')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSampleRequestModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowSampleRequestModal(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sample-req-modal-title"
+            className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 items-start gap-2">
+                <Package className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
+                <h3 id="sample-req-modal-title" className="text-lg font-bold text-gray-900 dark:text-white">
+                  {t('sampleRequestDialogTitle')}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setShowSampleRequestModal(false)}
+                aria-label={t('cancel')}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-800 dark:text-gray-200" dir="auto">
+              {title}
+            </p>
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400" dir="auto">
+              {t('sampleRequestDialogBody')}
+            </p>
+            <label htmlFor="sample-req-msg" className="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-400">
+              {t('messageOptional')}
+            </label>
+            <textarea
+              id="sample-req-msg"
+              value={sampleReqMessage}
+              onChange={(e) => setSampleReqMessage(e.target.value)}
+              className="input mt-1 min-h-[80px] w-full py-2 text-sm"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
+                onClick={() => setShowSampleRequestModal(false)}
+              >
+                {t('cancel')}
+              </button>
+              <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={handleSendSampleRequest}>
                 {t('sendRequest')}
               </button>
             </div>

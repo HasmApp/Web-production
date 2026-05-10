@@ -12,6 +12,8 @@ import { formatProductCategory } from '../../utils/formatProductCategory.js';
 import CountdownTimer from './CountdownTimer.jsx';
 import SarAmount from '../common/SarAmount.jsx';
 import LoadingSpinner from '../common/LoadingSpinner.jsx';
+import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
+import { isPickupOnlyProduct } from '../../utils/productFlags.js';
 
 export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const { isAuthenticated } = useAuth();
@@ -91,6 +93,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const bids = room?.bids ?? [];
   const timeRemaining = room?.time_remaining ?? room?.timeRemaining;
   const endTime = room?.end_time || room?.endTime;
+  const pickupOnly = isPickupOnlyProduct(product);
 
   return (
     <div
@@ -143,6 +146,11 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                   ) : (
                     <Package className="w-16 h-16 text-gray-300" strokeWidth={1} />
                   )}
+                  {pickupOnly ? (
+                    <div className="absolute top-2.5 start-2.5 z-10">
+                      <PickupOnlyBadge size="sm" />
+                    </div>
+                  ) : null}
 
                   {/* Prev/next arrows (if multiple images) */}
                   {images.length > 1 && (

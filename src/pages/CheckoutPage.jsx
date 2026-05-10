@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MapPin, CreditCard, CheckCircle, ArrowRight,
   Package, ChevronLeft, Clock, ChevronDown, Lock, ExternalLink, Search,
-  Landmark, Upload, FileText, X,
+  Landmark, Upload, FileText, X, Warehouse,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -19,7 +19,10 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
 import SarAmount from '../components/common/SarAmount.jsx';
+import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 import { apiErrorMessage } from '../utils/apiErrorMessage.js';
+import { isPickupOnlyProduct } from '../utils/productFlags.js';
+import { displayStockTierLabel } from '../utils/stockTierLabel.js';
 
 const CHECKOUT_ADDRESS_STORAGE_KEY = 'hasm_web_checkout_address_v1';
 
@@ -399,7 +402,15 @@ export default function CheckoutPage() {
   /** Same as mobile PaymentPage.showOfferApprovedMessage — one toast on checkout for auto-approved price request from product page. */
   const offerApprovedToastShownRef = useRef(false);
 
-  const STEPS = useMemo(() => [t('address'), t('payment')], [lang, t]);
+  const allPickupOnly = useMemo(
+    () => items.length > 0 && items.every((i) => isPickupOnlyProduct(i.product)),
+    [items]
+  );
+
+  const STEPS = useMemo(
+    () => (allPickupOnly ? [t('payment')] : [t('address'), t('payment')]),
+    [allPickupOnly, lang, t]
+  );
   const PAYMENT_METHODS = useMemo(
     () => [
       { id: 'card',          label: t('paymentCardTitle'),     icon: CreditCard, desc: t('visaMada') },
@@ -410,6 +421,10 @@ export default function CheckoutPage() {
   );
 
   const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    setStep(0);
+  }, [allPickupOnly]);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [pendingOrderId, setPendingOrderId] = useState(null);
@@ -514,6 +529,7 @@ export default function CheckoutPage() {
 
   const addressFormComplete = useMemo(
     () =>
+      allPickupOnly ||
       Boolean(
         address.region_id &&
           address.city_id &&
@@ -523,6 +539,7 @@ export default function CheckoutPage() {
           nationalAddressOk
       ),
     [
+      allPickupOnly,
       address.region_id,
       address.city_id,
       address.district_id,
@@ -547,13 +564,14 @@ export default function CheckoutPage() {
   }, [cartKey]);
 
   useEffect(() => {
-    if (step === 0) setConfirmedDeliveryFee(null);
-  }, [step]);
+    if (step === 0 && !allPickupOnly) setConfirmedDeliveryFee(null);
+  }, [step, allPickupOnly]);
 
   const computedDeliveryFee = useMemo(() => {
+    if (allPickupOnly) return 0;
     if (!addressFormComplete) return 0;
     return Number(configDeliveryPrice) || 0;
-  }, [addressFormComplete, configDeliveryPrice]);
+  }, [allPickupOnly, addressFormComplete, configDeliveryPrice]);
 
   const displayDeliveryFee =
     confirmedDeliveryFee !== null && confirmedDeliveryFee !== undefined
@@ -573,6 +591,7 @@ export default function CheckoutPage() {
 
   // ── Step 0 → 1: prepare Tap checkout on entering payment step ───────────────
   const handleGoToPayment = () => {
+    if (allPickupOnly) return;
     if (!addressFormComplete) {
       toast.error(t('completeShippingFields'));
       return;
@@ -587,8 +606,16 @@ export default function CheckoutPage() {
       // Create order ref + get order ID
       const prepRes = await prepareTapCheckout({
         items: orderItems,
-        shipping_address: shippingAddressStr,
-        short_address: address.short_address || '',
+        ...(allPickupOnly
+          ? {
+              pickup_only_checkout: true,
+              shipping_address: 'Warehouse pickup',
+              short_address: '',
+            }
+          : {
+              shipping_address: shippingAddressStr,
+              short_address: address.short_address || '',
+            }),
         currency: 'SAR',
       });
       const orderId = prepRes.order?.id || prepRes.order?._id;
@@ -636,8 +663,16 @@ export default function CheckoutPage() {
     try {
       const res = await createTamaraOrder({
         items: orderItems,
-        shipping_address: shippingAddressStr,
-        short_address: address.short_address || '',
+        ...(allPickupOnly
+          ? {
+              pickup_only_checkout: true,
+              shipping_address: 'Warehouse pickup',
+              short_address: '',
+            }
+          : {
+              shipping_address: shippingAddressStr,
+              short_address: address.short_address || '',
+            }),
         currency: 'SAR',
         total_amount: grandTotal,
         customer_phone: user?.phone,
@@ -683,8 +718,9 @@ export default function CheckoutPage() {
       await createOrderWithTransferProof({
         items: orderItems,
         transferProofFile: transferProof,
-        shippingAddress: shippingAddressStr,
-        shortAddress: address.short_address || '',
+        shippingAddress: allPickupOnly ? 'Warehouse pickup' : shippingAddressStr,
+        shortAddress: allPickupOnly ? '' : address.short_address || '',
+        pickupOnlyCheckout: allPickupOnly,
       });
       setTransferProof(null);
       goToOrdersAfterSuccessfulOrder();
@@ -706,11 +742,14 @@ export default function CheckoutPage() {
       {step < STEPS.length && (
         <button
           type="button"
-          onClick={() => (step === 0 ? navigate('/cart') : setStep(0))}
+          onClick={() => {
+            if (allPickupOnly || step === 0) navigate('/cart');
+            else setStep(0);
+          }}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary mb-6 transition-colors"
         >
           <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
-          {step === 0 ? t('backToCart') : t('backToAddress')}
+          {allPickupOnly || step === 0 ? t('backToCart') : t('backToAddress')}
         </button>
       )}
 
@@ -735,8 +774,8 @@ export default function CheckoutPage() {
         ))}
       </div>
 
-      {/* ── Step 0: Address ── */}
-      {step === 0 && (
+      {/* ── Step 0: Address (skipped when every line is warehouse pickup) ── */}
+      {!allPickupOnly && step === 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <AddressStep
@@ -750,23 +789,32 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* ── Step 1: Payment ── */}
-      {step === 1 && (
+      {/* ── Payment (step 0 if pickup-only cart, else step 1) ── */}
+      {((allPickupOnly && step === 0) || (!allPickupOnly && step === 1)) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4">
-            {/* Address review */}
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-primary" /> {t('shippingTo')}
+            {/* Shipping review or warehouse pickup notice */}
+            {allPickupOnly ? (
+              <div className="card p-5">
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2 mb-2">
+                  <Warehouse className="w-4 h-4 text-primary" /> {t('paymentPickupSectionTitle')}
                 </h3>
-                <button type="button" onClick={() => setStep(0)} className="text-xs text-primary hover:underline">{t('edit')}</button>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t('paymentPickupSectionSubtitle')}</p>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{shippingAddressStr}</p>
-              {address.short_address && (
-                <p className="text-xs text-gray-400 mt-0.5 font-mono">{tf('nationalAddressLine', { code: address.short_address })}</p>
-              )}
-            </div>
+            ) : (
+              <div className="card p-5">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-primary" /> {t('shippingTo')}
+                  </h3>
+                  <button type="button" onClick={() => setStep(0)} className="text-xs text-primary hover:underline">{t('edit')}</button>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{shippingAddressStr}</p>
+                {address.short_address && (
+                  <p className="text-xs text-gray-400 mt-0.5 font-mono">{tf('nationalAddressLine', { code: address.short_address })}</p>
+                )}
+              </div>
+            )}
 
             {/* Payment method */}
             <div className="card p-5">
@@ -876,6 +924,11 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{title}</p>
+                        {isPickupOnlyProduct(product) ? (
+                          <div className="mt-1">
+                            <PickupOnlyBadge />
+                          </div>
+                        ) : null}
                         <p className="text-xs text-gray-500">{tf('qtyShort', { n: quantity })}</p>
                       </div>
                       <p className="text-sm font-bold text-primary">
@@ -936,7 +989,14 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
               : (product.title_en || product.titleEn || product.title || '');
           return (
             <div key={product._id} className="flex justify-between gap-2 text-gray-600 dark:text-gray-400">
-              <span className="truncate">{title} — {stockLabel} ({tf('cartLineUnits', { n: quantity })})</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate" dir="auto">{title} — {displayStockTierLabel(stockLabel, t)} ({tf('cartLineUnits', { n: quantity })})</span>
+                {isPickupOnlyProduct(product) ? (
+                  <span className="mt-1 inline-block">
+                    <PickupOnlyBadge />
+                  </span>
+                ) : null}
+              </span>
               <span className="flex-shrink-0 text-gray-600 dark:text-gray-400">
                 <SarAmount amount={price * quantity} iconSize={12} />
               </span>
@@ -949,12 +1009,10 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
           <span>{t('subtotal')}</span>
           <span><SarAmount amount={total} iconSize={13} /></span>
         </div>
-        {fee > 0 && (
-          <div className="flex justify-between text-gray-500">
-            <span>{t('deliveryFee')}</span>
-            <span><SarAmount amount={fee} iconSize={13} /></span>
-          </div>
-        )}
+        <div className="flex justify-between text-gray-500">
+          <span>{t('deliveryFee')}</span>
+          <span><SarAmount amount={fee} iconSize={13} /></span>
+        </div>
         <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-100 dark:border-gray-800">
           <span>{t('total')} <span className="text-xs font-normal text-gray-400">({t('includingVat')})</span></span>
           <span className="text-primary"><SarAmount amount={grandTotal} iconSize={14} className="text-primary" numberClassName="font-bold text-primary" /></span>

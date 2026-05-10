@@ -22,7 +22,101 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import CountdownTimer from '../components/auction/CountdownTimer.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
+import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
+import { isPickupOnlyAuctionRoom } from '../utils/productFlags.js';
 import config from '../config/config.js';
+
+/** Same idea as mobile `AuctionRoomSummary._firstNonEmpty` / `fromJson` title keys. */
+function firstNonEmpty(obj, keys) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const key of keys) {
+    if (!(key in obj)) continue;
+    const v = obj[key];
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s) return s;
+  }
+  return '';
+}
+
+const ROOM_TITLE_AR_KEYS = [
+  'product_title_ar', 'productTitleAr', 'title_ar', 'titleAr',
+  'name_ar', 'nameAr', 'product_name_ar', 'productNameAr',
+];
+const ROOM_TITLE_EN_KEYS = [
+  'product_title_en', 'productTitleEn', 'title_en', 'titleEn',
+  'name_en', 'nameEn', 'product_name_en', 'productNameEn',
+];
+const PRODUCT_TITLE_AR_KEYS = [
+  'title_ar', 'titleAr', 'name_ar', 'nameAr', 'product_title_ar', 'productTitleAr',
+];
+const PRODUCT_TITLE_EN_KEYS = [
+  'title_en', 'titleEn', 'name_en', 'nameEn', 'product_title_en', 'productTitleEn',
+];
+const FALLBACK_TITLE_KEYS = ['product_title', 'productTitle', 'title', 'name'];
+
+/** Localized list/win card title — matches mobile `AuctionRoomSummary.fromJson` + `getProductTitleForLocale`. */
+function auctionRoomListTitle(room, lang, fallback) {
+  const product = room?.product && typeof room.product === 'object' ? room.product : null;
+  if (lang === 'ar') {
+    let t = firstNonEmpty(room, ROOM_TITLE_AR_KEYS);
+    if (!t && product) t = firstNonEmpty(product, PRODUCT_TITLE_AR_KEYS);
+    if (t) return t;
+    let fb = firstNonEmpty(room, FALLBACK_TITLE_KEYS);
+    if (!fb && product) fb = firstNonEmpty(product, ['title', 'name', 'product_title', 'productTitle']);
+    return fb || fallback;
+  }
+  let t = firstNonEmpty(room, ROOM_TITLE_EN_KEYS);
+  if (!t && product) t = firstNonEmpty(product, PRODUCT_TITLE_EN_KEYS);
+  if (t) return t;
+  let fb = firstNonEmpty(room, FALLBACK_TITLE_KEYS);
+  if (!fb && product) fb = firstNonEmpty(product, ['title_en', 'titleEn', 'title', 'name']);
+  return fb || fallback;
+}
+
+/** Mirrors mobile `_enrichMissingLocalizedTitles`: list payload may omit _en/_ar while GET /auctions/:id has them. */
+function roomNeedsLocalizedEnrich(room, lang) {
+  const product = room?.product && typeof room.product === 'object' ? room.product : null;
+  if (lang === 'ar') {
+    const t = firstNonEmpty(room, ROOM_TITLE_AR_KEYS)
+      || (product && firstNonEmpty(product, PRODUCT_TITLE_AR_KEYS));
+    return !t;
+  }
+  const t = firstNonEmpty(room, ROOM_TITLE_EN_KEYS)
+    || (product && firstNonEmpty(product, PRODUCT_TITLE_EN_KEYS));
+  return !t;
+}
+
+/** Avoid re-fetching auction detail on every silent poll once we have `product` for a room. */
+const fetchedAuctionProductById = new Map();
+
+function mergeRoomWithProduct(room, prod) {
+  return {
+    ...room,
+    product_title_ar: room.product_title_ar || prod.title_ar || prod.titleAr,
+    product_title_en: room.product_title_en || prod.title_en || prod.titleEn,
+    productTitleAr: room.productTitleAr || prod.title_ar || prod.titleAr,
+    productTitleEn: room.productTitleEn || prod.title_en || prod.titleEn,
+    product: room.product ?? prod,
+  };
+}
+
+async function enrichAuctionRoomsFromDetail(rooms, lang) {
+  if (!Array.isArray(rooms) || rooms.length === 0) return rooms;
+  return Promise.all(
+    rooms.map(async (room) => {
+      if (!roomNeedsLocalizedEnrich(room, lang)) return room;
+      const id = String(room.id || room._id);
+      let prod = fetchedAuctionProductById.get(id);
+      if (!prod) {
+        const detail = await fetchAuctionById(id).catch(() => null);
+        prod = detail?.product ? normalizeProduct(detail.product) : null;
+        if (prod) fetchedAuctionProductById.set(id, prod);
+      }
+      return prod ? mergeRoomWithProduct(room, prod) : room;
+    })
+  );
+}
 
 /**
  * Summary card for the auction list.
@@ -39,12 +133,10 @@ function AuctionCard({ room, onOpen }) {
   const endTime       = room.end_time       || room.endTime;
   const bidCount      = room.bid_count      ?? room.bidCount      ?? 0;
 
-  const title =
-    lang === 'ar'
-      ? (room.product_title_ar || room.productTitleAr || room.product_title || room.title || t('auctionItemFallback'))
-      : (room.product_title_en || room.product_title || room.title || t('auctionItemFallback'));
+  const title = auctionRoomListTitle(room, lang, t('auctionItemFallback'));
 
   const image = resolveMediaUrl(room.product_image || room.productImage || room.image || '');
+  const pickupOnly = isPickupOnlyAuctionRoom(room);
 
   return (
     <div
@@ -68,10 +160,13 @@ function AuctionCard({ room, onOpen }) {
           </div>
         )}
 
-        {/* LIVE badge */}
-        <div className="absolute top-2.5 start-2.5 flex items-center gap-1.5 bg-red-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shadow">
-          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white animate-pulse shrink-0" />
-          {t('liveBadge')}
+        {/* LIVE + pickup */}
+        <div className="absolute top-2.5 start-2.5 z-10 flex flex-col items-start gap-1.5">
+          <div className="flex items-center gap-1.5 bg-red-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full shadow">
+            <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white animate-pulse shrink-0" />
+            {t('liveBadge')}
+          </div>
+          {pickupOnly ? <PickupOnlyBadge size="sm" /> : null}
         </div>
 
         {/* Countdown — uses time_remaining seed (mirrors mobile) */}
@@ -211,10 +306,15 @@ export default function AuctionPage() {
     if (!silent) setLoading(true);
     try {
       const data = await fetchAuctions();
-      setAuctions(Array.isArray(data) ? data : []);
+      const arr = Array.isArray(data) ? data : [];
+      const enrichedAuctions = await enrichAuctionRoomsFromDetail(arr, lang);
+      setAuctions(enrichedAuctions);
       if (isAuthenticated) {
         const wonData = await fetchMyAuctionWins();
-        setWins(Array.isArray(wonData) ? wonData : []);
+        const winsArr = Array.isArray(wonData) ? wonData : [];
+        setWins(await enrichAuctionRoomsFromDetail(winsArr, lang));
+      } else {
+        setWins([]);
       }
     } catch {
       if (!silent) setAuctions([]);
@@ -223,7 +323,7 @@ export default function AuctionPage() {
     }
   };
 
-  useEffect(() => { load(); }, [isAuthenticated]);
+  useEffect(() => { load(); }, [isAuthenticated, lang]);
 
   // Keep auction cards fresh even when WS is unavailable/throttled.
   useEffect(() => {
@@ -259,7 +359,7 @@ export default function AuctionPage() {
       window.removeEventListener('focus', onResume);
       window.removeEventListener('pageshow', onResume);
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, lang]);
 
   // Real-time auction price updates via WS, with reconnect.
   useEffect(() => {
@@ -403,12 +503,10 @@ export default function AuctionPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
           {wins.map((room) => {
-            const winTitle =
-              lang === 'ar'
-                ? (room.product_title_ar || room.product_title || room.title || t('auctionItemFallback'))
-                : (room.product_title_en || room.product_title || room.title || t('auctionItemFallback'));
+            const winTitle = auctionRoomListTitle(room, lang, t('auctionItemFallback'));
             const winImage = resolveMediaUrl(room.product_image || room.image || '');
             const winPrice = room.current_price ?? room.currentPrice ?? 0;
+            const winPickupOnly = isPickupOnlyAuctionRoom(room);
             return (
               <div
                 key={room.id || room._id}
@@ -423,8 +521,11 @@ export default function AuctionPage() {
                       <Package className="w-12 h-12 sm:w-14 sm:h-14 text-gray-300" strokeWidth={1} />
                     </div>
                   )}
-                  <div className="absolute top-2.5 start-2.5 flex items-center gap-1.5 bg-emerald-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
-                    <Trophy className="w-4 h-4 shrink-0" /> {t('wonBadge')}
+                  <div className="absolute top-2.5 start-2.5 z-10 flex flex-col items-start gap-1.5">
+                    <div className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
+                      <Trophy className="w-4 h-4 shrink-0" /> {t('wonBadge')}
+                    </div>
+                    {winPickupOnly ? <PickupOnlyBadge size="sm" /> : null}
                   </div>
                 </div>
                 <div className="p-4 sm:p-5">

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Truck, CheckCircle, Clock, MapPin, ChevronLeft, RefreshCw } from 'lucide-react';
+import { CheckCircle, Clock, MapPin, ChevronLeft, RefreshCw } from 'lucide-react';
 import { fetchShipmentByOrder, trackShipment } from '../services/api.js';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
@@ -177,14 +177,6 @@ export default function ShipmentTrackingPage() {
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {!shipment && !tracking && (
-        <div className="card p-8 text-center">
-          <Truck className="w-12 h-12 text-gray-300 mx-auto mb-3" strokeWidth={1} />
-          <p className="font-semibold text-gray-900 dark:text-white mb-1">{t('noTrackingYet')}</p>
-          <p className="text-sm text-gray-400">{t('noTrackingDesc')}</p>
         </div>
       )}
     </div>
