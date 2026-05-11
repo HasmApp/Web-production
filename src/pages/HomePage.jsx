@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TrendingDown, Zap, Gavel, Star, X, Search,
@@ -57,6 +57,21 @@ function productMatchesCategory(product, categoryId) {
   // Legacy rows may use "Home" before dashboard standardized on "HomeLiving"
   if (want === 'homeliving' && main === 'home') return true;
   return false;
+}
+
+function productIdKey(p) {
+  if (!p) return '';
+  return String(p._id ?? p.id ?? '').trim();
+}
+
+/** Show approved-offer home card only if stock can still fulfill the agreed quantity. */
+function acceptedOfferEntryIsFulfillable(entry) {
+  const p = entry?.product;
+  if (!p) return false;
+  const stock = Number(p.quantity ?? p.stock ?? 0);
+  if (!Number.isFinite(stock) || stock < 1) return false;
+  const need = Math.max(1, Math.floor(Number(entry?.request?.quantity ?? 1) || 1));
+  return stock >= need;
 }
 
 export default function HomePage() {
@@ -259,6 +274,33 @@ export default function HomePage() {
       const dropB = ((b.initial_price - pb) / (b.initial_price || 1));
       return dropB - dropA;
     });
+
+  const acceptedOffersVisible = useMemo(
+    () => acceptedOffers.filter(acceptedOfferEntryIsFulfillable),
+    [acceptedOffers],
+  );
+
+  const acceptedOfferProductIds = useMemo(() => {
+    const ids = new Set();
+    for (const e of acceptedOffersVisible) {
+      const fromProduct = productIdKey(e.product);
+      if (fromProduct) ids.add(fromProduct);
+      else {
+        const pid = String(e.request?.product_id ?? '').trim();
+        if (pid) ids.add(pid);
+      }
+    }
+    return ids;
+  }, [acceptedOffersVisible]);
+
+  /** Avoid listing the same SKU twice (accepted row + catalog row). */
+  const filteredForGrid = useMemo(
+    () => filtered.filter((p) => !acceptedOfferProductIds.has(productIdKey(p))),
+    [filtered, acceptedOfferProductIds],
+  );
+
+  const visibleGridCount =
+    acceptedOffersVisible.length + filteredForGrid.length;
 
   const handleAcceptedOfferClick = (entry) => {
     // Match mobile home: add to cart and go to checkout with no toast (snackbar only
@@ -508,7 +550,7 @@ export default function HomePage() {
             </h2>
             {!loading && (
               <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
-                {filtered.length} {productCountLabel(filtered.length, lang, t)}
+                {visibleGridCount} {productCountLabel(visibleGridCount, lang, t)}
               </p>
             )}
           </div>
@@ -684,7 +726,7 @@ export default function HomePage() {
               />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                {acceptedOffers.map((entry) => (
+                {acceptedOffersVisible.map((entry) => (
                   <ProductCard
                     key={`accepted-${entry.request.id}`}
                     product={entry.product}
@@ -696,7 +738,7 @@ export default function HomePage() {
                     onAcceptedClick={() => handleAcceptedOfferClick(entry)}
                   />
                 ))}
-                {filtered.map((product) => (
+                {filteredForGrid.map((product) => (
                   <ProductCard key={product._id} product={product} deliveryIsFree={deliveryIsFree} />
                 ))}
               </div>

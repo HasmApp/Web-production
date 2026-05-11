@@ -337,8 +337,13 @@ export default function ProductPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
       {/* Breadcrumb */}
-      <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary mb-6 transition-colors">
-        <ChevronLeft className="w-4 h-4 rtl:rotate-180" /> {t('backToProducts')}
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="mb-6 flex items-center gap-1 text-sm text-gray-500 transition-colors hover:text-primary rtl:flex-row-reverse"
+      >
+        <ChevronLeft className="h-4 w-4 shrink-0 rtl:rotate-180" aria-hidden />
+        <span>{t('backToProducts')}</span>
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -376,11 +381,26 @@ export default function ProductPage() {
 
         {/* Details */}
         <div className="space-y-6">
-          {/* Title + category */}
+          {/* Title + category (favorite on same row as category) */}
           <div>
-            <p className="text-sm font-semibold text-primary mb-1 leading-snug" dir="auto">
-              {formatProductCategory(product.category, t)}
-            </p>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-primary" dir="auto">
+                {formatProductCategory(product.category, t)}
+              </p>
+              <button
+                type="button"
+                onClick={toggleFav}
+                aria-label={isFav ? t('removeFromFavorites') : t('addToFavorites')}
+                title={isFav ? t('removeFromFavorites') : t('addToFavorites')}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 transition-all ${
+                  isFav
+                    ? 'border-red-500 bg-red-50 text-red-500 dark:bg-red-900/30'
+                    : 'border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500 dark:border-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <Heart className="h-5 w-5" fill={isFav ? 'currentColor' : 'none'} aria-hidden />
+              </button>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
               {title}
             </h1>
@@ -486,48 +506,36 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-2.5">
-            <button type="button" onClick={handleAddToCart} className="btn-primary flex-1 py-2.5 text-sm">
-              <ShoppingCart className="w-4 h-4 shrink-0" /> {t('addToCart')}
+          {/* Stacked like mobile: full-width purchase → full-width submit price → alert | sample */}
+          <div className="card p-3 space-y-2">
+            <button
+              type="button"
+              disabled={(product.quantity ?? product.stock ?? 0) < 1}
+              onClick={handleAddToCart}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-950"
+            >
+              <ShoppingCart className="h-5 w-5 shrink-0" aria-hidden />
+              {t('addToCart')}
             </button>
             <button
               type="button"
-              onClick={toggleFav}
-              className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center transition-all ${
-                isFav
-                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-500'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-400 hover:border-red-300 hover:text-red-400'
-              }`}
+              disabled={(product.quantity ?? product.stock ?? 0) < 1}
+              onClick={() => {
+                if (!isAuthenticated) {
+                  toast.error(t('loginPriceRequest'));
+                  return;
+                }
+                setReqQuantity(String(Math.max(1, selectedQty || 1)));
+                setReqPrice(Number(current).toFixed(2));
+                setReqMessage('');
+                setShowPriceRequestModal(true);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Heart className="w-5 h-5" fill={isFav ? 'currentColor' : 'none'} />
+              <Tag className="h-5 w-5 shrink-0 text-white" strokeWidth={2} aria-hidden />
+              <span className="min-w-0 max-w-full text-center leading-tight line-clamp-2">{t('requestOfferCta')}</span>
             </button>
-          </div>
-
-          {/* Price alert + request: request first in DOM — left in EN (LTR), right in AR (RTL) */}
-          <div className="card p-3 space-y-1.5">
             <div className="flex gap-2 items-stretch" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    toast.error(t('loginPriceRequest'));
-                    return;
-                  }
-                  setReqQuantity('1');
-                  setReqPrice(Number(current).toFixed(2));
-                  setReqMessage('');
-                  setShowPriceRequestModal(true);
-                }}
-                className="flex-1 min-h-0 rounded-xl px-1 py-1.5 bg-primary text-white shadow-sm transition-opacity hover:opacity-95"
-              >
-                <span className="flex flex-col items-center justify-center gap-0.5">
-                  <Tag className="h-4 w-4 shrink-0" strokeWidth={2} />
-                  <span className="text-center text-[10px] font-semibold leading-tight text-white">
-                    {t('requestOfferCta')}
-                  </span>
-                </span>
-              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -538,40 +546,40 @@ export default function ProductPage() {
                   setAlertPrice(alert ? String(alert.target_price ?? '') : '');
                   setShowAlertModal(true);
                 }}
-                className={`flex-1 min-h-0 rounded-xl px-1 py-1.5 border-2 bg-white shadow-sm transition-colors dark:bg-gray-800/60 ${
+                className={`flex flex-1 min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white px-2 py-2 shadow-sm transition-colors dark:bg-gray-800/60 ${
                   alert
-                    ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400 dark:border-emerald-500'
+                    ? 'border-emerald-600 text-emerald-700 dark:border-emerald-500 dark:text-emerald-400'
                     : 'border-primary/55 text-primary dark:text-gray-100'
                 }`}
               >
-                <span className="flex flex-col items-center justify-center gap-0.5">
-                  <Bell className="h-4 w-4 shrink-0" strokeWidth={2} />
-                  <span className="text-center text-[10px] font-semibold leading-tight">
-                    {alert ? t('updateAlert') : t('setAlert')}
-                  </span>
+                <Bell className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                <span className="text-center text-[10px] font-semibold leading-tight px-0.5">
+                  {alert ? t('updateAlert') : t('setAlert')}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    toast.error(t('loginSampleRequest'));
+                    return;
+                  }
+                  const sellerId = product.owner_id || product.owner?.id;
+                  if (!sellerId) {
+                    toast.error(t('priceRequestUnavailable'));
+                    return;
+                  }
+                  setSampleReqMessage('');
+                  setShowSampleRequestModal(true);
+                }}
+                className="flex flex-1 min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-primary/55 bg-white px-2 py-2 text-primary shadow-sm transition-colors hover:bg-primary/5 dark:bg-gray-800/60 dark:text-gray-100 dark:hover:bg-gray-800"
+              >
+                <Package className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                <span className="text-center text-[10px] font-semibold leading-tight text-primary dark:text-gray-100 px-0.5">
+                  {t('sampleRequestCta')}
                 </span>
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (!isAuthenticated) {
-                  toast.error(t('loginSampleRequest'));
-                  return;
-                }
-                const sellerId = product.owner_id || product.owner?.id;
-                if (!sellerId) {
-                  toast.error(t('priceRequestUnavailable'));
-                  return;
-                }
-                setSampleReqMessage('');
-                setShowSampleRequestModal(true);
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary/55 bg-white py-2.5 text-xs font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 dark:bg-gray-800/60 dark:text-gray-100 dark:hover:bg-gray-800"
-            >
-              <Package className="h-4 w-4 shrink-0" strokeWidth={2} />
-              {t('sampleRequestCta')}
-            </button>
           </div>
 
           {/* Tamara ad */}
