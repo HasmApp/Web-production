@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MapPin, CreditCard, CheckCircle, ArrowRight,
   Package, ChevronLeft, Clock, ChevronDown, Lock, ExternalLink, Search,
-  Landmark, Upload, FileText, X, Warehouse,
+  Landmark, Upload, FileText, X, Warehouse, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -13,6 +13,7 @@ import {
   fetchRegions, fetchCities, fetchDistricts,
   resolveMediaUrl,
   fetchAppConfig,
+  fetchPickupLocationPreview,
 } from '../services/api.js';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -54,6 +55,17 @@ function loadSavedCheckoutAddress() {
   } catch {
     return defaultCheckoutAddress();
   }
+}
+
+function pickupSupplierIdsFromCart(items) {
+  const ids = new Set();
+  for (const row of items) {
+    const p = row?.product;
+    if (!p || !isPickupOnlyProduct(p)) continue;
+    const id = p.owner_id ?? p.ownerId;
+    if (id) ids.add(String(id));
+  }
+  return [...ids].sort();
 }
 
 // ─── Address step ─────────────────────────────────────────────────────────────
@@ -432,6 +444,9 @@ export default function CheckoutPage() {
   /** After prepare Tap / Tamara create — mirrors server `delivery_fee`; null = use client estimate. */
   const [confirmedDeliveryFee, setConfirmedDeliveryFee] = useState(null);
   const [configDeliveryPrice, setConfigDeliveryPrice] = useState(0);
+  /** Warehouse city label(s) for pickup-only carts (public shipping preview). */
+  const [pickupCityLine, setPickupCityLine] = useState(null);
+  const [pickupPreviewLoading, setPickupPreviewLoading] = useState(false);
 
   const [address, setAddress] = useState(() => loadSavedCheckoutAddress());
 
@@ -558,6 +573,44 @@ export default function CheckoutPage() {
       })
       .catch(() => setConfigDeliveryPrice(0));
   }, []);
+
+  useEffect(() => {
+    if (!allPickupOnly || items.length === 0) {
+      setPickupCityLine(null);
+      setPickupPreviewLoading(false);
+      return undefined;
+    }
+    const ids = pickupSupplierIdsFromCart(items);
+    let cancelled = false;
+    (async () => {
+      if (ids.length === 0) {
+        if (!cancelled) {
+          setPickupCityLine(null);
+          setPickupPreviewLoading(false);
+        }
+        return;
+      }
+      if (!cancelled) setPickupPreviewLoading(true);
+      const labels = [];
+      for (const sid of ids) {
+        try {
+          const d = await fetchPickupLocationPreview(sid, lang);
+          const c = (d?.city ?? '').toString().trim();
+          if (c) labels.push(c);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (cancelled) return;
+      const sep = lang.startsWith('ar') ? '، ' : ', ';
+      setPickupCityLine(labels.length ? labels.join(sep) : null);
+      setPickupPreviewLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+      setPickupPreviewLoading(false);
+    };
+  }, [allPickupOnly, items, lang]);
 
   useEffect(() => {
     setConfirmedDeliveryFee(null);
@@ -799,7 +852,27 @@ export default function CheckoutPage() {
                 <h3 className="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2 mb-2">
                   <Warehouse className="w-4 h-4 text-primary" /> {t('paymentPickupSectionTitle')}
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{t('paymentPickupSectionSubtitle')}</p>
+                {pickupCityLine ? (
+                  <p className="mt-1 flex min-w-0 flex-nowrap items-baseline gap-x-1.5 font-sans text-sm leading-snug">
+                    <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      {t('pickupLocationTitle')}:
+                    </span>
+                    <span
+                      className="min-w-0 truncate font-semibold text-gray-900 dark:text-white"
+                      dir="auto"
+                    >
+                      {pickupCityLine}
+                    </span>
+                  </p>
+                ) : pickupPreviewLoading ? (
+                  <div className="mt-3 flex items-center text-gray-500 dark:text-gray-400" aria-busy="true">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary shrink-0" aria-hidden />
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                    {t('pickupInfoUnavailable')}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="card p-5">

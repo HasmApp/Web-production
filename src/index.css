@@ -21,8 +21,9 @@
     font-family: 'Tajawal', system-ui, sans-serif;
   }
 
+  /* Inter for Latin; Tajawal must follow so Arabic snippets (e.g. city names on EN checkout) match RTL UI. */
   [dir="ltr"] {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Inter', 'Tajawal', system-ui, sans-serif;
   }
 
   /* Riyal + amount: keep numeric order correct in RTL (same idea as dashboard). */

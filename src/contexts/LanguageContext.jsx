@@ -101,6 +101,7 @@ const translations = {
     paymentPickupSectionTitle: 'Pickup at warehouse',
     paymentPickupSectionSubtitle:
       'No shipping address is required. Pay here, then collect your order from the supplier warehouse.',
+    paymentPickupWarehouseCityLine: 'Warehouse city: {city}',
     edit: 'Edit',
     nationalAddress: 'National Address',
     paymentMethod: 'Payment Method',
@@ -626,6 +627,7 @@ const translations = {
     paymentPickupSectionTitle: 'الاستلام من المستودع',
     paymentPickupSectionSubtitle:
       'لا حاجة لعنوان توصيل. أكمل الدفع هنا، ثم استلم طلبك من مستودع المورد.',
+    paymentPickupWarehouseCityLine: 'مدينة المستودع: {city}',
     edit: 'تعديل',
     nationalAddress: 'العنوان الوطني',
     paymentMethod: 'طريقة الدفع',

@@ -360,6 +360,15 @@ export const fetchAppConfig = async () => {
   return res.data;
 };
 
+/** Public: supplier warehouse city for pickup-only checkout (shipping service). */
+export const fetchPickupLocationPreview = async (supplierId, lang) => {
+  const res = await api.get(
+    `/shipments/public/suppliers/${encodeURIComponent(supplierId)}/pickup-preview`,
+    { params: lang ? { lang } : {} }
+  );
+  return res.data;
+};
+
 // ─── Account ──────────────────────────────────────────────────────────────────
 
 export const deleteAccount = async () => {
