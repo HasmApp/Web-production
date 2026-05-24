@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, Tag, X,
-  Package, Truck, Shield, Star, TrendingUp, Warehouse,
+  Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, X,
+  Package, Truck, Shield, Star, Minus, Plus, Warehouse,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -12,8 +12,6 @@ import {
   fetchAlerts,
   deleteAlert,
   resolveMediaUrl,
-  createPriceRequest,
-  createSampleRequest,
 } from '../services/api.js';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -22,7 +20,13 @@ import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
-import { isPickupOnlyProduct } from '../utils/productFlags.js';
+import { isPickupOnlyProduct, isBundlePackageProduct } from '../utils/productFlags.js';
+import {
+  defaultSizeOption,
+  hasSizeQuantities,
+  sizeOptions,
+  stockForSize,
+} from '../utils/sizeQuantities.js';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 
 const FAVORITES_KEY = 'hasm_favorites';
@@ -63,6 +67,27 @@ const sanitizeOfferedPriceInput = (raw) => {
   return `${before}.${after}`;
 };
 
+/** Matches mobile `ProductPage._maxSelectableQuantity`. */
+function maxSelectableQuantity(product, selectedSize = null) {
+  const stock = stockForSize(product, selectedSize);
+  if (stock <= 0) return 0;
+  const isFullStock =
+    product.sell_full_quantity_only === true ||
+    product.sellFullQuantityOnly === true ||
+    product.from_ended_auction === true ||
+    product.fromEndedAuction === true;
+  if (isFullStock) return stock;
+  const shippingLimit = Number(
+    product.final_max_quantity ??
+    product.finalMaxQuantity ??
+    product.max_quantity_per_box ??
+    product.maxQuantityPerBox ??
+    1,
+  );
+  if (shippingLimit > 0 && stock > shippingLimit) return shippingLimit;
+  return stock;
+}
+
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -73,18 +98,12 @@ export default function ProductPage() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState(0);
-  const [stockOption, setStockOption] = useState('quarter'); // 'quarter' | 'half' | 'full'
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState(null);
   const [isFav, setIsFav] = useState(false);
   const [alert, setAlert] = useState(null);
   const [alertPrice, setAlertPrice] = useState('');
   const [showAlertModal, setShowAlertModal] = useState(false);
-  const [addedToCart, setAddedToCart] = useState(false);
-  const [showPriceRequestModal, setShowPriceRequestModal] = useState(false);
-  const [reqQuantity, setReqQuantity] = useState('1');
-  const [reqPrice, setReqPrice] = useState('');
-  const [reqMessage, setReqMessage] = useState('');
-  const [showSampleRequestModal, setShowSampleRequestModal] = useState(false);
-  const [sampleReqMessage, setSampleReqMessage] = useState('');
   /** Unit price frozen when you open this page (from home/card). Same idea as mobile `ProductPage` `_currentPrice`. */
   const [lockedPrice, setLockedPrice] = useState(null);
 
@@ -94,49 +113,34 @@ export default function ProductPage() {
 
   useEffect(() => {
     setLockedPrice(null);
-    setStockOption('quarter');
+    setSelectedQuantity(1);
+    setSelectedSize(null);
   }, [id]);
-
-  const stockOptions = useMemo(() => {
-    if (!product) return [];
-    const totalQty = product.quantity ?? product.stock ?? 0;
-    const fromEndedAuction =
-      product.from_ended_auction === true || product.from_ended_auction === 1;
-    const bundleFullLotOnly =
-      product.bundle_full_lot_only === true || product.bundle_full_lot_only === 1;
-    const sellFullOnly =
-      product.sell_full_quantity_only === true || product.sell_full_quantity_only === 1;
-    /* Post-auction singles: relax allow_* so quarter/half/full show. Bundles stay full-lot-only. */
-    const relaxFullStockFlags = fromEndedAuction && !bundleFullLotOnly;
-    const hasExplicitFlags =
-      product.allow_quarter_quantity !== undefined ||
-      product.allow_half_quantity !== undefined ||
-      product.allow_full_quantity !== undefined;
-    return [
-      (relaxFullStockFlags || (hasExplicitFlags ? product.allow_quarter_quantity : true)) &&
-        { key: 'quarter', label: t('quarter'), qty: product.quantity_quarter ?? Math.floor(totalQty / 4) },
-      (relaxFullStockFlags || (hasExplicitFlags ? product.allow_half_quantity : true)) &&
-        { key: 'half', label: t('half'), qty: product.quantity_half ?? Math.floor(totalQty / 2) },
-      (relaxFullStockFlags || (hasExplicitFlags ? product.allow_full_quantity !== false : true)) &&
-        { key: 'full', label: t('full'), qty: product.quantity_full ?? totalQty },
-    ]
-      .filter(Boolean)
-      .filter((o) => o.qty > 0);
-  }, [product, t]);
-
-  useEffect(() => {
-    if (stockOptions.length !== 1) return;
-    const only = stockOptions[0].key;
-    setStockOption((prev) => (prev === only ? prev : only));
-  }, [id, stockOptions]);
 
   useEffect(() => {
     const load = async () => {
       try {
         const data = await fetchProductById(id);
+        if (!data) {
+          toast.error(t('productNotFound'));
+          navigate('/');
+          return;
+        }
+        if (isBundlePackageProduct(data)) {
+          toast.error(t('productNotFound'));
+          navigate('/');
+          return;
+        }
         setProduct(data);
         const snap = Number(data.current_price ?? data.currentPrice ?? 0);
         setLockedPrice(Number.isFinite(snap) ? snap : 0);
+        const initialSize = hasSizeQuantities(data) ? defaultSizeOption(data) : null;
+        setSelectedSize(initialSize);
+        const maxQty = maxSelectableQuantity(data, initialSize);
+        setSelectedQuantity((q) => {
+          if (maxQty <= 0) return 1;
+          return Math.min(Math.max(1, q), maxQty);
+        });
         const favs = getFavorites();
         setIsFav(favs.includes(data._id));
         if (isAuthenticated) {
@@ -174,27 +178,11 @@ export default function ProductPage() {
   const initial = product.initial_price ?? product.initialPrice ?? 0;
   const supplierName = getSupplierDisplayName(product);
   const pickupOnly = isPickupOnlyProduct(product);
-
-  // Default selection is quarter when multiple options exist (see useState / id effect); fall back if unavailable
-  const activeOption = stockOptions.find((o) => o.key === stockOption) ?? stockOptions[stockOptions.length - 1];
-  const selectedQty = activeOption?.qty ?? 0;
-  const sellFullOnly =
-    product.sell_full_quantity_only === true || product.sell_full_quantity_only === 1;
-  const fromEndedAuction =
-    product.from_ended_auction === true || product.from_ended_auction === 1;
-  /** Package / full-lot listing: only the full tier (including bundle after auction once API flags are correct). */
-  const isBundlePackageProduct =
-    sellFullOnly &&
-    stockOptions.length === 1 &&
-    stockOptions[0]?.key === 'full';
-  const msrpUnit = Number(product.msrp ?? product.MSRP);
-  const expectedProfitDiff =
-    Number.isFinite(msrpUnit) &&
-    msrpUnit > current &&
-    Number.isFinite(selectedQty) &&
-    selectedQty > 0
-      ? (msrpUnit - current) * selectedQty
-      : null;
+  const sizeChoices = sizeOptions(product);
+  const usesSizes = sizeChoices.length > 0;
+  const maxQty = maxSelectableQuantity(product, selectedSize);
+  const stepperMax = maxQty > 0 ? maxQty : 1;
+  const totalLinePrice = current * selectedQuantity;
 
   const toggleFav = () => {
     const favs = getFavorites();
@@ -205,13 +193,31 @@ export default function ProductPage() {
   };
 
   const handleAddToCart = () => {
-    if (!activeOption) { toast.error(t('selectStockToast')); return; }
+    const stock = stockForSize(product, selectedSize);
+    if (stock < 1) return;
+    if (usesSizes && !selectedSize) {
+      toast.error(t('selectSizeRequired'));
+      return;
+    }
+    let qty = selectedQuantity;
+    if (maxQty > 0 && qty > maxQty) qty = maxQty;
+    if (qty < 1) qty = 1;
     addItem(
       { ...product, current_price: current, currentPrice: current },
-      selectedQty,
-      activeOption.label
+      qty,
+      'Full',
+      selectedSize,
     );
-    navigate('/checkout');
+    navigate('/cart', { replace: true });
+  };
+
+  const handleSizeChange = (size) => {
+    setSelectedSize(size);
+    const nextMax = maxSelectableQuantity(product, size);
+    setSelectedQuantity((q) => {
+      if (nextMax <= 0) return 1;
+      return Math.min(Math.max(1, q), nextMax);
+    });
   };
 
   const handleSetAlert = async () => {
@@ -240,91 +246,7 @@ export default function ProductPage() {
     }
   };
 
-  const handleSendPriceRequest = async () => {
-    if (!isAuthenticated) {
-      toast.error(t('loginPriceRequest'));
-      return;
-    }
-    const sellerId = product.owner_id || product.owner?.id;
-    if (!sellerId) {
-      toast.error(t('priceRequestUnavailable'));
-      return;
-    }
-    const quantity = Number(reqQuantity);
-    const offeredRaw = Number(reqPrice);
-    const offeredCents = Math.round(offeredRaw * 100);
-    const offered = offeredCents / 100;
-    if (
-      !Number.isFinite(quantity) || quantity <= 0
-      || !Number.isFinite(offeredRaw) || !Number.isFinite(offered) || offered <= 0
-    ) {
-      toast.error(t('invalidPriceRequestValues'));
-      return;
-    }
-    try {
-      const created = await createPriceRequest({
-        product_id: product._id || product.id,
-        seller_id: String(sellerId),
-        quantity,
-        offered_price: offered,
-        message: reqMessage.trim() || undefined,
-      });
-      const status = String(created?.status || '').toLowerCase();
-      setShowPriceRequestModal(false);
-      setReqQuantity('1');
-      setReqPrice('');
-      setReqMessage('');
-      if (status === 'approved') {
-        const note = String(created?.decision_note || '').toLowerCase();
-        const showOfferApprovedOnCheckout = note.includes('auto-approved');
-        const unitPrice = Number(created?.offered_price ?? offered);
-        const patched = {
-          ...product,
-          current_price: unitPrice,
-          currentPrice: unitPrice,
-          initial_price: unitPrice,
-          initialPrice: unitPrice,
-        };
-        addItem(
-          patched,
-          quantity > 0 ? quantity : 1,
-          activeOption?.label || 'Full',
-        );
-        // Match mobile PaymentPage(showOfferApprovedMessage): toast once on checkout, not before navigate.
-        navigate('/checkout', {
-          state: showOfferApprovedOnCheckout ? { showOfferApprovedMessage: true } : {},
-        });
-      } else {
-        toast.success(t('priceRequestSent'));
-      }
-    } catch {
-      toast.error(t('priceRequestFailed'));
-    }
-  };
 
-  const handleSendSampleRequest = async () => {
-    if (!isAuthenticated) {
-      toast.error(t('loginSampleRequest'));
-      return;
-    }
-    const sellerId = product.owner_id || product.owner?.id;
-    if (!sellerId) {
-      toast.error(t('priceRequestUnavailable'));
-      return;
-    }
-    try {
-      await createSampleRequest({
-        product_id: product._id || product.id,
-        seller_id: String(sellerId),
-        message: sampleReqMessage.trim() || undefined,
-      });
-      setShowSampleRequestModal(false);
-      setSampleReqMessage('');
-      toast.success(t('sampleRequestSent'));
-    } catch {
-      toast.error(t('sampleRequestFailed'));
-    }
-  };
 
   const handleRemoveAlert = async () => {
     try {
@@ -411,18 +333,8 @@ export default function ProductPage() {
             )}
           </div>
 
-          {/* Price block */}
-          <div className="card p-5 space-y-4 text-start">
-            {isBundlePackageProduct && selectedQty > 0 ? (
-              <span
-                className="inline-flex min-h-[2.25rem] min-w-[2.5rem] items-center justify-center gap-1.5 rounded-full border border-gray-300 bg-white px-3.5 py-1.5 text-xs font-bold text-gray-900 shadow-sm tabular-nums dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:shadow-none"
-                dir="auto"
-              >
-                <Package className="h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={2.25} aria-hidden />
-                {tf('packageDealQuantity', { quantity: selectedQty })}
-              </span>
-            ) : null}
-            {/* No dir=ltr on wrapper: SarAmount isolates bidi; justify-start follows RTL so the price sits on the logical start (right in Arabic). */}
+          {/* Price + purchase bar — matches mobile ProductPage (quantity stepper, purchase, alert only). */}
+          <div className="card p-4 space-y-4 text-start">
             <div className="flex w-full justify-start items-baseline gap-3 flex-wrap">
               <SarAmount
                 amount={current}
@@ -431,153 +343,91 @@ export default function ProductPage() {
                 numberClassName="text-4xl font-extrabold text-primary"
               />
             </div>
-            {initial > current && (
+            {initial > current ? (
               <p className="text-sm text-gray-400 line-through flex w-full justify-start items-baseline gap-1 flex-wrap">
                 <span>{t('was')}</span>
                 <SarAmount amount={initial} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
               </p>
-            )}
-            {expectedProfitDiff != null && (
-              <div className="flex w-full justify-start">
-                <div
-                  className="flex max-w-full flex-wrap items-baseline gap-1.5 text-start text-sm font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
-                  dir={lang === 'ar' ? 'rtl' : 'ltr'}
-                >
-                  <TrendingUp className="h-4 w-4 shrink-0 self-center text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
-                  <span className="min-w-0 shrink" dir="auto">
-                    {t('expectedProfitDiff')}
-                    {' : '}
-                  </span>
-                  <SarAmount
-                    amount={expectedProfitDiff}
-                    iconSize={14}
-                    prefix="+"
-                    className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
-                    numberClassName="text-sm font-extrabold text-emerald-600 dark:text-emerald-400"
-                  />
-                </div>
-              </div>
-            )}
+            ) : null}
             {pickupOnly ? (
               <div className="pt-1">
                 <PickupOnlyBadge size="md" />
               </div>
             ) : null}
-          </div>
 
-          {/* Stock option selector — hidden when only full quantity (e.g. package products) */}
-          <div>
-            {stockOptions.length > 1 ? (
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('selectStockOption')}</label>
-            ) : null}
-            {stockOptions.length > 0 ? (
-              <>
-                {stockOptions.length > 1 ? (
-                  <div className="flex gap-3">
-                    {stockOptions.map(({ key, label, qty }) => (
+            {usesSizes ? (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{t('selectSize')}</p>
+                <div className="flex flex-wrap gap-2">
+                  {sizeChoices.map((size) => {
+                    const available = stockForSize(product, size);
+                    const active = selectedSize === size;
+                    return (
                       <button
+                        key={size}
                         type="button"
-                        key={key}
-                        onClick={() => setStockOption(key)}
-                        className={`flex-1 py-3 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
-                          (activeOption?.key === key)
-                            ? 'border-primary bg-primary-50 dark:bg-primary-900/20 text-primary'
-                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300'
-                        }`}
+                        disabled={available <= 0}
+                        onClick={() => handleSizeChange(size)}
+                        className={`inline-flex min-w-[3rem] flex-col items-center rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                          active
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-primary/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+                        } ${available <= 0 ? 'cursor-not-allowed opacity-40' : ''}`}
                       >
-                        <div>{label}</div>
-                        <div className="text-xs font-normal mt-0.5 opacity-70">{tf('qtyShort', { n: qty })}</div>
+                        <span>{size}</span>
+                        <span className="mt-0.5 text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                          {tf('sizeStockLeft', { n: available })}
+                        </span>
                       </button>
-                    ))}
-                  </div>
-                ) : null}
-                <p
-                  className={`text-sm text-gray-500 flex flex-wrap items-center gap-1 ${stockOptions.length > 1 ? 'mt-2' : ''}`}
-                  dir="auto"
-                >
-                  <span>{t('totalLine')}</span>
-                  <strong className="text-gray-900 dark:text-white inline-flex items-center" dir="ltr">
-                    <SarAmount amount={current * selectedQty} iconSize={14} className="text-gray-900 dark:text-white" numberClassName="font-bold text-gray-900 dark:text-white" />
-                  </strong>
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-gray-400">{t('stockOptionsUnavailable')}</p>
-            )}
-          </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
-          {/* Stacked like mobile: full-width purchase → full-width submit price → alert | sample */}
-          <div className="card p-3 space-y-2">
-            <button
-              type="button"
-              disabled={(product.quantity ?? product.stock ?? 0) < 1}
-              onClick={handleAddToCart}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-3.5 text-base font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-950"
-            >
-              <ShoppingCart className="h-5 w-5 shrink-0" aria-hidden />
-              {t('addToCart')}
-            </button>
-            <button
-              type="button"
-              disabled={(product.quantity ?? product.stock ?? 0) < 1}
-              onClick={() => {
-                if (!isAuthenticated) {
-                  toast.error(t('loginPriceRequest'));
-                  return;
-                }
-                setReqQuantity(String(Math.max(1, selectedQty || 1)));
-                setReqPrice(Number(current).toFixed(2));
-                setReqMessage('');
-                setShowPriceRequestModal(true);
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 text-base font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Tag className="h-5 w-5 shrink-0 text-white" strokeWidth={2} aria-hidden />
-              <span className="min-w-0 max-w-full text-center leading-tight line-clamp-2">{t('requestOfferCta')}</span>
-            </button>
-            <div className="flex gap-2 items-stretch" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+            <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="min-w-0 flex-1 basis-[6.5rem]">
+                <p className="text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+                  {tf('totalPriceForPieces', { quantity: selectedQuantity })}
+                </p>
+                <SarAmount
+                  amount={totalLinePrice}
+                  iconSize={16}
+                  className="text-base font-bold text-gray-900 dark:text-white"
+                  numberClassName="text-base font-bold text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-gray-700 dark:bg-gray-800/80">
+                <button
+                  type="button"
+                  disabled={selectedQuantity <= 1 || maxQty <= 0}
+                  onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
+                  className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700"
+                  aria-label={t('decreaseQuantity')}
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <span className="min-w-[1.75rem] text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white">
+                  {selectedQuantity}
+                </span>
+                <button
+                  type="button"
+                  disabled={selectedQuantity >= stepperMax || maxQty <= 0}
+                  onClick={() => setSelectedQuantity((q) => Math.min(stepperMax, q + 1))}
+                  className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700"
+                  aria-label={t('increaseQuantity')}
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    toast.error(t('loginAlertsShort'));
-                    return;
-                  }
-                  setAlertPrice(alert ? String(alert.target_price ?? '') : '');
-                  setShowAlertModal(true);
-                }}
-                className={`flex flex-1 min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 bg-white px-2 py-2 shadow-sm transition-colors dark:bg-gray-800/60 ${
-                  alert
-                    ? 'border-emerald-600 text-emerald-700 dark:border-emerald-500 dark:text-emerald-400'
-                    : 'border-primary/55 text-primary dark:text-gray-100'
-                }`}
+                disabled={(product.quantity ?? product.stock ?? 0) < 1}
+                onClick={handleAddToCart}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-950"
               >
-                <Bell className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-                <span className="text-center text-[10px] font-semibold leading-tight px-0.5">
-                  {alert ? t('updateAlert') : t('setAlert')}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    toast.error(t('loginSampleRequest'));
-                    return;
-                  }
-                  const sellerId = product.owner_id || product.owner?.id;
-                  if (!sellerId) {
-                    toast.error(t('priceRequestUnavailable'));
-                    return;
-                  }
-                  setSampleReqMessage('');
-                  setShowSampleRequestModal(true);
-                }}
-                className="flex flex-1 min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-primary/55 bg-white px-2 py-2 text-primary shadow-sm transition-colors hover:bg-primary/5 dark:bg-gray-800/60 dark:text-gray-100 dark:hover:bg-gray-800"
-              >
-                <Package className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
-                <span className="text-center text-[10px] font-semibold leading-tight text-primary dark:text-gray-100 px-0.5">
-                  {t('sampleRequestCta')}
-                </span>
+                <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
+                {t('purchase')}
               </button>
             </div>
           </div>
@@ -617,6 +467,27 @@ export default function ProductPage() {
               </div>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isAuthenticated) {
+                toast.error(t('loginAlertsShort'));
+                return;
+              }
+              setAlertPrice(alert ? String(alert.target_price ?? '') : '');
+              setShowAlertModal(true);
+            }}
+            className={`flex w-full items-center gap-2 rounded-lg px-1 py-2 text-start text-sm font-medium transition-colors ${
+              alert
+                ? 'text-emerald-700 dark:text-emerald-400'
+                : 'text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            <Bell className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            <span className="flex-1">{alert ? t('updateAlert') : t('setAlert')}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 rtl:rotate-90 opacity-60" aria-hidden />
+          </button>
 
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -733,157 +604,8 @@ export default function ProductPage() {
         </div>
       )}
 
-      {showPriceRequestModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowPriceRequestModal(false)}
-          role="presentation"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="price-req-modal-title"
-            className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <h3 id="price-req-modal-title" className="text-lg font-bold text-gray-900 dark:text-white">
-                {t('requestPriceFromSeller')}
-              </h3>
-              <button
-                type="button"
-                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                onClick={() => setShowPriceRequestModal(false)}
-                aria-label={t('cancel')}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-800 dark:text-gray-200" dir="auto">
-              {title}
-            </p>
-            <div className="mt-3 flex flex-wrap items-baseline gap-2 text-sm">
-              <span className="font-medium text-primary">{t('currentPriceLabel')}</span>
-              <SarAmount
-                amount={current}
-                iconSize={14}
-                className="font-semibold text-primary"
-                numberClassName="font-semibold text-primary"
-              />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div>
-                <label htmlFor="pr-qty" className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                  {t('quantity')}
-                </label>
-                <input
-                  id="pr-qty"
-                  type="number"
-                  min="1"
-                  value={reqQuantity}
-                  onChange={(e) => setReqQuantity(e.target.value)}
-                  className="input mt-1 w-full py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label htmlFor="pr-price" className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                  {t('offeredPrice')}
-                </label>
-                <input
-                  id="pr-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={reqPrice}
-                  onChange={(e) => setReqPrice(sanitizeOfferedPriceInput(e.target.value))}
-                  className="input mt-1 w-full py-2 text-sm"
-                />
-              </div>
-            </div>
-            <label htmlFor="pr-msg" className="mt-3 block text-xs font-medium text-gray-600 dark:text-gray-400">
-              {t('messageOptional')}
-            </label>
-            <textarea
-              id="pr-msg"
-              value={reqMessage}
-              onChange={(e) => setReqMessage(e.target.value)}
-              className="input mt-1 min-h-[80px] w-full py-2 text-sm"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
-                onClick={() => setShowPriceRequestModal(false)}
-              >
-                {t('cancel')}
-              </button>
-              <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={handleSendPriceRequest}>
-                {t('sendRequest')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {showSampleRequestModal && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowSampleRequestModal(false)}
-          role="presentation"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sample-req-modal-title"
-            className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex min-w-0 items-start gap-2">
-                <Package className="mt-0.5 h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
-                <h3 id="sample-req-modal-title" className="text-lg font-bold text-gray-900 dark:text-white">
-                  {t('sampleRequestDialogTitle')}
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                onClick={() => setShowSampleRequestModal(false)}
-                aria-label={t('cancel')}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-800 dark:text-gray-200" dir="auto">
-              {title}
-            </p>
-            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400" dir="auto">
-              {t('sampleRequestDialogBody')}
-            </p>
-            <label htmlFor="sample-req-msg" className="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-400">
-              {t('messageOptional')}
-            </label>
-            <textarea
-              id="sample-req-msg"
-              value={sampleReqMessage}
-              onChange={(e) => setSampleReqMessage(e.target.value)}
-              className="input mt-1 min-h-[80px] w-full py-2 text-sm"
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded-xl border border-gray-300 px-4 py-2 text-sm dark:border-gray-600"
-                onClick={() => setShowSampleRequestModal(false)}
-              >
-                {t('cancel')}
-              </button>
-              <button type="button" className="btn-primary px-4 py-2 text-sm" onClick={handleSendSampleRequest}>
-                {t('sendRequest')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

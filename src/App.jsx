@@ -6,11 +6,11 @@ import { CartProvider } from './contexts/CartContext.jsx';
 import { LanguageProvider } from './contexts/LanguageContext.jsx';
 
 import HomePage from './pages/HomePage.jsx';
+import DealsPage from './pages/DealsPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
 import CartPage from './pages/CartPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
 import OrdersPage from './pages/OrdersPage.jsx';
-import AuctionPage from './pages/AuctionPage.jsx';
 import FavoritesPage from './pages/FavoritesPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import MyPriceRequestsPage from './pages/MyPriceRequestsPage.jsx';
@@ -38,9 +38,14 @@ function AppRoutes() {
 
       {/* Main app with layout */}
       <Route path="/" element={<Layout><HomePage /></Layout>} />
+      <Route path="/packages" element={<Navigate to="/" replace />} />
+      <Route path="/package" element={<Navigate to="/" replace />} />
+      <Route path="/pakage" element={<Navigate to="/" replace />} />
+      <Route path="/packages/product/:id" element={<Navigate to="/" replace />} />
+      <Route path="/deals" element={<Layout><DealsPage /></Layout>} />
       <Route path="/product/:id" element={<Layout><ProductPage /></Layout>} />
       <Route path="/cart" element={<Layout><CartPage /></Layout>} />
-      <Route path="/auctions" element={<Layout><AuctionPage /></Layout>} />
+      <Route path="/auctions" element={<Navigate to="/" replace />} />
       <Route path="/favorites" element={<Layout><FavoritesPage /></Layout>} />
       <Route path="/orders" element={<Layout><OrdersPage /></Layout>} />
       <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />

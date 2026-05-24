@@ -36,14 +36,14 @@ export default function Footer() {
     { labelKey: 'footerCategoryAll', to: '/' },
     { labelKey: 'footerCategoryFashion', to: '/' },
     { labelKey: 'footerCategoryHomeLiving', to: '/' },
-    { labelKey: 'footerCategoryElectronics', to: '/' },
-    { labelKey: 'footerCategoryAutomotive', to: '/' },
+    { labelKey: 'catKitchen', to: '/' },
+    { labelKey: 'catLifestyle', to: '/' },
   ];
 
   const accountLinks = [
     { labelKey: 'orders', to: '/orders' },
     { labelKey: 'favorites', to: '/favorites' },
-    { labelKey: 'liveAuctions', to: '/auctions' },
+    { labelKey: 'shopNavDeals', to: '/deals' },
     { labelKey: 'profile', to: '/profile' },
   ];
 

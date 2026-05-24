@@ -1,0 +1,186 @@
+import { useState, useEffect, useMemo } from 'react';
+import { Gavel, Timer, Trophy } from 'lucide-react';
+import {
+  fetchAuctions,
+  fetchMyAuctionWins,
+  resolveMediaUrl,
+} from '../../services/api.js';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useLanguage } from '../../contexts/LanguageContext.jsx';
+import SarAmount from '../common/SarAmount.jsx';
+import {
+  auctionRoomListTitle,
+  filterAuctionRooms,
+  isActiveAuctionRoom,
+  enrichAuctionRoomsFromDetail,
+  formatAuctionTimeRemaining,
+} from '../../utils/auctionUtils.js';
+import { LIVE_PRICE_TEXT_CLASS, PRODUCT_RAIL_CARD_CLASS } from '../../design/shopTokens.js';
+
+/** Same width as product grid cells in Home/Deals (`gap-5` = 1.25rem). */
+const RAIL_CARD_WIDTH_CLASS = PRODUCT_RAIL_CARD_CLASS;
+
+function AuctionRailCard({ entry, onOpen }) {
+  const { t, lang, tf } = useLanguage();
+  const { room, isWon } = entry;
+  const title = auctionRoomListTitle(room, lang, t('auctionItemFallback'));
+  const image = resolveMediaUrl(room.product_image || room.productImage || room.image || '');
+  const price = room.current_price ?? room.currentPrice ?? 0;
+  const bidCount = room.bid_count ?? room.bidCount ?? 0;
+  const timeRemaining = room.time_remaining ?? room.timeRemaining ?? 0;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(room.id || room._id)}
+      className="group flex w-full min-w-0 flex-col text-start rounded-xl bg-white shadow-md transition-all duration-300 hover:opacity-[0.97] dark:bg-gray-900"
+    >
+      <div className="px-2 pt-2">
+        <div className="relative aspect-[100/82] w-full overflow-hidden rounded-xl bg-gray-50 dark:bg-gray-800">
+          {image ? (
+            <img
+              src={image}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+              loading="lazy"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-gray-300 dark:text-gray-700">
+              <Gavel className="h-12 w-12" strokeWidth={1} />
+            </div>
+          )}
+          <span
+            className={`absolute top-3 start-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold text-white shadow ${
+              isWon
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                : 'bg-gradient-to-r from-primary to-violet-600'
+            }`}
+          >
+            {isWon ? <Trophy className="h-3 w-3" /> : <Gavel className="h-3 w-3" />}
+            {isWon ? t('wonBadge') : t('auctionOpportunityBadge')}
+          </span>
+          {!isWon && (
+            <span className="absolute bottom-3 start-3 end-3 flex items-center gap-1 rounded-lg border border-emerald-500/50 bg-black/65 px-2 py-1.5 text-xs font-bold text-white">
+              <Timer className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+              <span className="truncate tabular-nums">
+                {formatAuctionTimeRemaining(timeRemaining, t)}
+              </span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1 px-2 py-1.5 pb-2">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-gray-900 dark:text-white">
+          {title}
+        </h3>
+        <div className="mt-auto pt-1">
+          <div className="flex w-full justify-start">
+            <div
+              dir="ltr"
+              className="inline-flex max-w-full items-baseline gap-1.5"
+            >
+              <SarAmount
+                amount={price}
+                iconSize={15}
+                className={`text-lg font-bold ${LIVE_PRICE_TEXT_CLASS}`}
+                numberClassName={`text-lg font-bold tabular-nums ${LIVE_PRICE_TEXT_CLASS}`}
+              />
+              <span className="truncate text-xs font-semibold text-gray-500 dark:text-gray-400">
+                {tf('auctionBidsCount', { n: bidCount })}
+              </span>
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="btn-primary inline-flex w-full items-center justify-center py-1.5 text-xs font-bold">
+              {isWon ? t('purchase') : t('viewAndBid')}
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+export default function AuctionRailSection({
+  selectedWorld,
+  selectedSubcategory,
+  onOpenRoom,
+}) {
+  const { isAuthenticated } = useAuth();
+  const { lang, t } = useLanguage();
+  const [allRooms, setAllRooms] = useState([]);
+  const [wonRooms, setWonRooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await fetchAuctions();
+        const arr = Array.isArray(data) ? data : [];
+        const enriched = await enrichAuctionRoomsFromDetail(arr, lang);
+        let won = [];
+        if (isAuthenticated) {
+          const wonData = await fetchMyAuctionWins();
+          const winsArr = Array.isArray(wonData) ? wonData : [];
+          won = await enrichAuctionRoomsFromDetail(winsArr, lang);
+        }
+        if (!cancelled) {
+          setAllRooms(enriched);
+          setWonRooms(won);
+        }
+      } catch {
+        if (!cancelled) {
+          setAllRooms([]);
+          setWonRooms([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, lang]);
+
+  const visibleEntries = useMemo(() => {
+    const filterOpts = { world: selectedWorld, subcategory: selectedSubcategory };
+    const won = filterAuctionRooms(wonRooms, filterOpts);
+    const active = filterAuctionRooms(
+      allRooms.filter(isActiveAuctionRoom),
+      filterOpts,
+    );
+    const activeIds = new Set(active.map((r) => String(r.id || r._id)));
+    return [
+      ...won
+        .filter((r) => !activeIds.has(String(r.id || r._id)))
+        .map((room) => ({ room, isWon: true })),
+      ...active.map((room) => ({ room, isWon: false })),
+    ];
+  }, [allRooms, wonRooms, selectedWorld, selectedSubcategory]);
+
+  if (loading || visibleEntries.length === 0) return null;
+
+  return (
+    <section className="mb-4">
+      <div className="mb-3 px-0.5">
+        <h2 className="text-base font-bold text-gray-900 dark:text-white">
+          {t('shopAuctionRailTitle')}
+        </h2>
+        <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+          {t('shopAuctionRailSub')}
+        </p>
+      </div>
+      <div className="flex gap-5 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory">
+        {visibleEntries.map((entry) => (
+          <div
+            key={entry.room.id || entry.room._id}
+            className={`flex-shrink-0 snap-start ${RAIL_CARD_WIDTH_CLASS}`}
+          >
+            <AuctionRailCard entry={entry} onOpen={onOpenRoom} />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

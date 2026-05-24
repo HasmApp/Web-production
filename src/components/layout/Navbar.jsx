@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
-  ShoppingCart, Heart, Gavel, Package, User, Menu, X,
-  Sun, Moon, Search, Bell, LogOut, Settings, TrendingDown, Languages,
+  ShoppingCart, Heart, Package, User, Menu, X,
+  Sun, Moon, Search, Bell, LogOut, Settings, Home, TrendingDown, Languages,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCart } from '../../contexts/CartContext.jsx';
@@ -10,8 +10,8 @@ import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import { logoUrl } from '../../assets/branding.js';
 
 const navLinks = [
-  { to: '/', labelKey: 'home', icon: TrendingDown },
-  { to: '/auctions', labelKey: 'auctions', icon: Gavel },
+  { to: '/', labelKey: 'home', icon: Home },
+  { to: '/deals', labelKey: 'shopNavDeals', icon: TrendingDown },
   { to: '/orders', labelKey: 'orders', icon: Package },
   { to: '/favorites', labelKey: 'favorites', icon: Heart },
 ];
@@ -131,13 +131,19 @@ export default function Navbar() {
             </button>
 
             {/* Cart */}
-            <Link to="/cart" className="btn-ghost w-9 h-9 p-0 rounded-xl relative">
-              <ShoppingCart className="w-4 h-4" />
-              {count > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
-                  {count > 99 ? '99+' : count}
-                </span>
-              )}
+            <Link
+              to="/cart"
+              className="btn-ghost w-9 h-9 p-0 rounded-xl relative"
+              aria-label={count > 0 ? `${t('shopNavCart')} (${count})` : t('shopNavCart')}
+            >
+              <span className="relative inline-flex">
+                <ShoppingCart className="w-4 h-4" aria-hidden />
+                {count > 0 ? (
+                  <span className="absolute -top-1.5 -end-1.5 z-10 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-white tabular-nums">
+                    {count > 99 ? '99+' : count}
+                  </span>
+                ) : null}
+              </span>
             </Link>
 
             {/* Profile / Login — sessionPending avoids Login flash while /auth/me runs */}

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import config from '../config/config.js';
+import { excludeHiddenShopProducts, isHiddenFromShop } from '../constants/shopCategories.js';
 
 /** Turn API-relative image paths into absolute URLs (same idea as the mobile app). */
 export const resolveMediaUrl = (path) => {
@@ -117,21 +118,30 @@ export const normalizeProduct = (p) => (p ? { ...p, _id: p._id || p.id } : p);
 
 export const fetchProducts = async (params = {}) => {
   const res = await api.get('/products/', {
-    params: { ...params, _ts: Date.now() },
+    params: { limit: 5000, ...params, _ts: Date.now() },
     headers: {
       'Cache-Control': 'no-cache',
       Pragma: 'no-cache',
     },
   });
   const data = res.data;
-  if (Array.isArray(data)) return data.map(normalizeProduct);
-  if (data?.items) return { ...data, items: data.items.map(normalizeProduct) };
+  if (Array.isArray(data)) {
+    return excludeHiddenShopProducts(data.map(normalizeProduct));
+  }
+  if (data?.items) {
+    return {
+      ...data,
+      items: excludeHiddenShopProducts(data.items.map(normalizeProduct)),
+    };
+  }
   return data;
 };
 
 export const fetchProductById = async (id) => {
   const res = await api.get(`/products/${id}`);
-  return normalizeProduct(res.data);
+  const product = normalizeProduct(res.data);
+  if (isHiddenFromShop(product)) return null;
+  return product;
 };
 
 // ─── Orders ──────────────────────────────────────────────────────────────────
@@ -164,17 +174,6 @@ export const validateCart = async (items) => {
 };
 
 // ─── Price Requests ───────────────────────────────────────────────────────────
-
-export const createPriceRequest = async ({ product_id, seller_id, quantity, offered_price, message }) => {
-  const res = await api.post('/orders/price-requests/', {
-    product_id,
-    seller_id,
-    quantity,
-    offered_price,
-    ...(message ? { message } : {}),
-  });
-  return res.data;
-};
 
 export const fetchMyPriceRequests = async () => {
   const res = await api.get('/orders/price-requests/my');

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MapPin, CreditCard, CheckCircle, ArrowRight,
@@ -23,6 +23,12 @@ import SarAmount from '../components/common/SarAmount.jsx';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 import { apiErrorMessage } from '../utils/apiErrorMessage.js';
 import { isPickupOnlyProduct } from '../utils/productFlags.js';
+import { cartGroupKeyForItem } from '../utils/supplierCart.js';
+import {
+  billableLineTotal,
+  checkoutDisplayQuantity,
+  toCheckoutOrderItem,
+} from '../utils/bogoPromotion.js';
 import { displayStockTierLabel } from '../utils/stockTierLabel.js';
 
 const CHECKOUT_ADDRESS_STORAGE_KEY = 'hasm_web_checkout_address_v1';
@@ -408,15 +414,33 @@ function AddressStep({ address, setAddress, onNext, canContinue }) {
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items, total, clearCart } = useCart();
+  const { items, clearCart, restoreStashedItems, isolateCheckoutForGroup } = useCart();
   const { user } = useAuth();
   const { t, tf, lang } = useLanguage();
   /** Same as mobile PaymentPage.showOfferApprovedMessage — one toast on checkout for auto-approved price request from product page. */
   const offerApprovedToastShownRef = useRef(false);
+  const exitToHomeOnBack = Boolean(location.state?.exitToHomeOnBack);
+  const checkoutGroupKey = location.state?.checkoutGroupKey ?? null;
+
+  useLayoutEffect(() => {
+    if (checkoutGroupKey) {
+      isolateCheckoutForGroup(checkoutGroupKey);
+    }
+  }, [checkoutGroupKey, isolateCheckoutForGroup]);
+
+  const checkoutItems = useMemo(() => {
+    if (!checkoutGroupKey) return items;
+    return items.filter((i) => cartGroupKeyForItem(i) === checkoutGroupKey);
+  }, [items, checkoutGroupKey]);
+
+  const checkoutTotal = useMemo(
+    () => checkoutItems.reduce((sum, i) => sum + billableLineTotal(i), 0),
+    [checkoutItems],
+  );
 
   const allPickupOnly = useMemo(
-    () => items.length > 0 && items.every((i) => isPickupOnlyProduct(i.product)),
-    [items]
+    () => checkoutItems.length > 0 && checkoutItems.every((i) => isPickupOnlyProduct(i.product)),
+    [checkoutItems]
   );
 
   const STEPS = useMemo(
@@ -480,14 +504,20 @@ export default function CheckoutPage() {
 
   // Redirect to cart if empty — must be in useEffect, not during render
   useEffect(() => {
-    if (items.length === 0) {
+    if (checkoutItems.length === 0) {
       if (suppressEmptyCartRedirectRef.current) {
         suppressEmptyCartRedirectRef.current = false;
         return;
       }
       navigate('/cart');
     }
-  }, [items.length, navigate]);
+  }, [checkoutItems.length, navigate]);
+
+  useEffect(() => () => {
+    if (!suppressEmptyCartRedirectRef.current) {
+      restoreStashedItems();
+    }
+  }, [restoreStashedItems]);
 
   const pollCharge = useCallback(
     (chargeId, orderId) => {
@@ -514,18 +544,13 @@ export default function CheckoutPage() {
   );
 
   const cartKey = useMemo(
-    () => (items.length === 0 ? '' : items.map((i) => `${i.product._id || i.product.id}:${i.quantity}`).join('|')),
-    [items]
+    () => (checkoutItems.length === 0 ? '' : checkoutItems.map((i) => `${i.product._id || i.product.id}:${i.quantity}`).join('|')),
+    [checkoutItems]
   );
 
   const orderItems = useMemo(
-    () =>
-      items.map((i) => ({
-        product_id: i.product._id || i.product.id,
-        quantity: i.quantity,
-        price: i.price,
-      })),
-    [items]
+    () => checkoutItems.map((i) => toCheckoutOrderItem(i)),
+    [checkoutItems]
   );
 
   const shippingAddressStr = useMemo(
@@ -575,12 +600,12 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
-    if (!allPickupOnly || items.length === 0) {
+    if (!allPickupOnly || checkoutItems.length === 0) {
       setPickupCityLine(null);
       setPickupPreviewLoading(false);
       return undefined;
     }
-    const ids = pickupSupplierIdsFromCart(items);
+    const ids = pickupSupplierIdsFromCart(checkoutItems);
     let cancelled = false;
     (async () => {
       if (ids.length === 0) {
@@ -610,7 +635,7 @@ export default function CheckoutPage() {
       cancelled = true;
       setPickupPreviewLoading(false);
     };
-  }, [allPickupOnly, items, lang]);
+  }, [allPickupOnly, checkoutItems, lang]);
 
   useEffect(() => {
     setConfirmedDeliveryFee(null);
@@ -631,9 +656,9 @@ export default function CheckoutPage() {
       ? confirmedDeliveryFee
       : computedDeliveryFee;
 
-  const grandTotal = total + (Number(displayDeliveryFee) || 0);
+  const grandTotal = checkoutTotal + (Number(displayDeliveryFee) || 0);
 
-  if (items.length === 0) return null;
+  if (checkoutItems.length === 0) return null;
 
   // Parse user name into first/last
   const defaultCustomer = t('checkoutCustomerDefault');
@@ -796,6 +821,11 @@ export default function CheckoutPage() {
         <button
           type="button"
           onClick={() => {
+            if (exitToHomeOnBack) {
+              restoreStashedItems();
+              navigate('/', { replace: true });
+              return;
+            }
             if (allPickupOnly || step === 0) navigate('/cart');
             else setStep(0);
           }}
@@ -838,7 +868,7 @@ export default function CheckoutPage() {
               canContinue={addressFormComplete}
             />
           </div>
-          <OrderSummary items={items} total={total} deliveryFee={displayDeliveryFee} lang={lang} />
+          <OrderSummary items={checkoutItems} total={checkoutTotal} deliveryFee={displayDeliveryFee} lang={lang} />
         </div>
       )}
 
@@ -980,9 +1010,12 @@ export default function CheckoutPage() {
 
             {/* Items summary */}
             <div className="card p-5">
-              <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-3">{tf('itemsInOrder', { n: items.length })}</h3>
+              <h3 className="font-bold text-gray-900 dark:text-white text-sm mb-3">{tf('itemsInOrder', { n: checkoutItems.length })}</h3>
               <div className="space-y-3">
-                {items.map(({ product, quantity, price }) => {
+                {checkoutItems.map((line) => {
+                  const { product, quantity, price } = line;
+                  const displayQty = checkoutDisplayQuantity(line);
+                  const lineTotal = billableLineTotal(line);
                   const title =
                     lang === 'ar'
                       ? (product.title_ar || product.titleAr || product.title || '')
@@ -1002,10 +1035,10 @@ export default function CheckoutPage() {
                             <PickupOnlyBadge />
                           </div>
                         ) : null}
-                        <p className="text-xs text-gray-500">{tf('qtyShort', { n: quantity })}</p>
+                        <p className="text-xs text-gray-500">{tf('qtyShort', { n: displayQty })}</p>
                       </div>
                       <p className="text-sm font-bold text-primary">
-                        <SarAmount amount={price * quantity} iconSize={13} className="text-primary" numberClassName="font-bold" />
+                        <SarAmount amount={lineTotal} iconSize={13} className="text-primary" numberClassName="font-bold" />
                       </p>
                     </div>
                   );
@@ -1039,7 +1072,7 @@ export default function CheckoutPage() {
             </button>
           </div>
 
-          <OrderSummary items={items} total={total} deliveryFee={displayDeliveryFee} lang={lang} />
+          <OrderSummary items={checkoutItems} total={checkoutTotal} deliveryFee={displayDeliveryFee} lang={lang} />
         </div>
       )}
 
@@ -1055,7 +1088,10 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
     <div className="card p-5 h-fit sticky top-20">
       <h3 className="font-bold text-gray-900 dark:text-white mb-4">{t('orderSummary')}</h3>
       <div className="space-y-2 text-sm mb-4 max-h-52 overflow-y-auto">
-        {items.map(({ product, quantity, stockLabel, price }) => {
+        {items.map((line) => {
+          const { product, quantity, stockLabel, price } = line;
+          const displayQty = checkoutDisplayQuantity(line);
+          const lineTotal = billableLineTotal(line);
           const title =
             lang === 'ar'
               ? (product.title_ar || product.titleAr || product.title || '')
@@ -1063,7 +1099,7 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
           return (
             <div key={product._id} className="flex justify-between gap-2 text-gray-600 dark:text-gray-400">
               <span className="min-w-0 flex-1">
-                <span className="block truncate" dir="auto">{title} — {displayStockTierLabel(stockLabel, t)} ({tf('cartLineUnits', { n: quantity })})</span>
+                <span className="block truncate" dir="auto">{title} — {displayStockTierLabel(stockLabel, t)} ({tf('cartLineUnits', { n: displayQty })})</span>
                 {isPickupOnlyProduct(product) ? (
                   <span className="mt-1 inline-block">
                     <PickupOnlyBadge />
@@ -1071,7 +1107,7 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
                 ) : null}
               </span>
               <span className="flex-shrink-0 text-gray-600 dark:text-gray-400">
-                <SarAmount amount={price * quantity} iconSize={12} />
+                <SarAmount amount={lineTotal} iconSize={12} />
               </span>
             </div>
           );

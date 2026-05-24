@@ -1,9 +1,14 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  TrendingDown, Zap, Gavel, Star, X, Search,
-  LayoutGrid, Shirt, Home as HomeIcon, Leaf, Car, HardHat, UtensilsCrossed,
+  TrendingDown, Zap, Star, X, Search,
+  LayoutGrid, Shirt, Home as HomeIcon, Leaf, UtensilsCrossed,
 } from 'lucide-react';
+import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
+import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
+import AuctionRailSection from '../components/auction/AuctionRailSection.jsx';
+import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
+import ProductRailSection from '../components/shop/ProductRailSection.jsx';
 import { fetchMyPriceRequests, fetchProductById, fetchProducts, fetchAppConfig } from '../services/api.js';
 import ProductCard from '../components/product/ProductCard.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
@@ -15,6 +20,18 @@ import { useCart } from '../contexts/CartContext.jsx';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
 import { parseProductCategory, formatSubcategoryChipLabel } from '../utils/formatProductCategory.js';
 import { productCountLabel } from '../utils/productCountLabel.js';
+import { isBundlePackageProduct } from '../utils/productFlags.js';
+import {
+  excludePackageProducts,
+  filterByStockType,
+  excludeDealsPageProducts,
+  filterHomeFeedTab,
+  filterInStock,
+  sortProductsByPriceDecay,
+  sortByPrice,
+} from '../utils/productFeedFilters.js';
+import { bestSellers, newArrivals } from '../utils/shopProductDisplay.js';
+import { SORT_SELECT_CLASS } from '../design/shopTokens.js';
 
 /** IDs must match Dashboard / product-service (e.g. InsertProduct: Fashion, HomeLiving, LifeStyle, …). */
 const CATEGORIES = [
@@ -23,8 +40,6 @@ const CATEGORIES = [
   { id: 'HomeLiving', labelKey: 'catHomeLiving', icon: HomeIcon },
   { id: 'Kitchen', labelKey: 'catKitchen', icon: UtensilsCrossed },
   { id: 'LifeStyle', labelKey: 'catLifestyle', icon: Leaf },
-  { id: 'Automotive', labelKey: 'catAutomotive', icon: Car },
-  { id: 'Construction', labelKey: 'catConstruction', icon: HardHat },
 ];
 
 /** Same keys / English labels as Mobile-production `home_page.dart` `_subcategories`. */
@@ -39,10 +54,8 @@ const SUBCATEGORIES = {
     'Other',
   ],
   HomeLiving: ['Bedding', 'Home Essentials', 'Home Decor', 'Other'],
-  Kitchen: ['Coffee Tools', 'Restaurant Tools', 'Kitchen Tools', 'Foods', 'Other'],
+  Kitchen: ['Coffee Tools', 'Kitchen Tools', 'Other'],
   LifeStyle: ['Tech Accessories', 'Office Supplies', "Kids' Toys", 'Other'],
-  Automotive: ['Car Accessories', 'Equipment', 'Other'],
-  Construction: ['Building Materials', 'Power Tools', 'Plumbing Tools', 'Construction Tools', 'Other'],
 };
 
 /** Match API format: exact "Fashion" or "Fashion|Subcategory" (see product-service search_products). */
@@ -74,6 +87,9 @@ function acceptedOfferEntryIsFulfillable(entry) {
   return stock >= need;
 }
 
+/** ~2 rows before certified banner (matches mobile `firstGridChunkSize`). */
+const HOME_GRID_CHUNK_SIZE = 4;
+
 export default function HomePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -101,6 +117,7 @@ export default function HomePage() {
   const [sort, setSort] = useState('default');
   const [acceptedOffers, setAcceptedOffers] = useState([]);
   const [deliveryIsFree, setDeliveryIsFree] = useState(false);
+  const [openAuctionRoomId, setOpenAuctionRoomId] = useState(null);
 
   const selectCategory = (id) => {
     setCategory(id);
@@ -248,8 +265,12 @@ export default function HomePage() {
     setSearchParams(next, { replace: true });
   };
 
-  const filtered = products
-    .filter((p) => {
+  const filtered = useMemo(() => {
+    let list = filterInStock(products);
+    list = excludePackageProducts(list);
+    list = filterByStockType(list, 'full_stock');
+    list = excludeDealsPageProducts(list);
+    list = list.filter((p) => {
       if (q) {
         const ql = q.toLowerCase();
         const blobs = [p.title_en, p.titleEn, p.title, p.title_ar, p.titleAr]
@@ -263,20 +284,18 @@ export default function HomePage() {
         if (!prodSub || prodSub.toLowerCase() !== subcategory.toLowerCase()) return false;
       }
       return true;
-    })
-    .sort((a, b) => {
-      const pa = a.current_price ?? a.currentPrice ?? 0;
-      const pb = b.current_price ?? b.currentPrice ?? 0;
-      if (sort === 'low') return pa - pb;
-      if (sort === 'high') return pb - pa;
-      // Default: fastest dropping (largest % drop)
-      const dropA = ((a.initial_price - pa) / (a.initial_price || 1));
-      const dropB = ((b.initial_price - pb) / (b.initial_price || 1));
-      return dropB - dropA;
     });
+    list = filterHomeFeedTab(list, 'new');
+    if (sort === 'low' || sort === 'high') {
+      return sortByPrice(list, sort);
+    }
+    return sortProductsByPriceDecay(list);
+  }, [products, q, category, subcategory, sort]);
 
   const acceptedOffersVisible = useMemo(
-    () => acceptedOffers.filter(acceptedOfferEntryIsFulfillable),
+    () => acceptedOffers.filter(
+      (e) => acceptedOfferEntryIsFulfillable(e) && !isBundlePackageProduct(e?.product),
+    ),
     [acceptedOffers],
   );
 
@@ -299,8 +318,44 @@ export default function HomePage() {
     [filtered, acceptedOfferProductIds],
   );
 
+  /** Catalog slice for Best Sellers / New Arrivals rails (matches mobile `_buildCatalogProducts`). */
+  const catalogForCarousels = useMemo(() => {
+    let list = filterInStock(products);
+    list = excludePackageProducts(list);
+    list = filterByStockType(list, 'full_stock');
+    list = excludeDealsPageProducts(list);
+    return list.filter((p) => {
+      if (!productMatchesCategory(p, category)) return false;
+      if (subcategory) {
+        const { subcategory: prodSub } = parseProductCategory(p.category);
+        if (!prodSub || prodSub.toLowerCase() !== subcategory.toLowerCase()) return false;
+      }
+      return true;
+    });
+  }, [products, category, subcategory]);
+
+  const bestSellerProducts = useMemo(
+    () => bestSellers(catalogForCarousels, { limit: 10 }),
+    [catalogForCarousels],
+  );
+
+  const newArrivalProducts = useMemo(
+    () => newArrivals(catalogForCarousels, { limit: 10 }),
+    [catalogForCarousels],
+  );
+
   const visibleGridCount =
     acceptedOffersVisible.length + filteredForGrid.length;
+
+  const firstCatalogChunk = useMemo(
+    () => filteredForGrid.slice(0, HOME_GRID_CHUNK_SIZE),
+    [filteredForGrid],
+  );
+  const restCatalogChunk = useMemo(
+    () => filteredForGrid.slice(HOME_GRID_CHUNK_SIZE),
+    [filteredForGrid],
+  );
+  const showCertifiedInGrid = firstCatalogChunk.length > 0;
 
   const handleAcceptedOfferClick = (entry) => {
     // Match mobile home: add to cart and go to checkout with no toast (snackbar only
@@ -316,7 +371,7 @@ export default function HomePage() {
       initialPrice: offered,
     };
     addItem(patched, requestQty > 0 ? requestQty : 1, 'Full');
-    navigate('/checkout');
+    navigate('/cart');
   };
 
   return (
@@ -407,58 +462,23 @@ export default function HomePage() {
                 {t('heroDesc')}
               </p>
 
-              {/* Certified stamp */}
-              <div className="mt-7 inline-flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md px-4 py-3 self-start">
-                {/* Stamp icon */}
-                <div className="relative flex-shrink-0 w-10 h-10">
-                  <svg viewBox="0 0 40 40" className="absolute inset-0 w-full h-full">
-                    <circle cx="20" cy="20" r="18.5" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1" strokeDasharray="3.5 2.5" />
-                    <circle cx="20" cy="20" r="14" fill="rgba(16,185,129,0.85)" />
-                    <polyline points="12,20 17,25 28,14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <div className={lang === 'ar' ? 'text-right' : 'text-left'}>
-                  <p className="text-sm font-bold text-white leading-tight">{t('certifiedTitle')}</p>
-                  <p className="text-xs text-white/70 mt-0.5">{t('certifiedSub')}</p>
-                </div>
-              </div>
+              <CertifiedProductsBanner variant="hero" className="mt-7" />
 
               <div className={`mt-6 flex flex-wrap gap-3 sm:gap-4 ${lang === 'ar' ? 'justify-start w-full' : 'justify-start'}`}>
-                {lang === 'ar' ? (
-                  <>
-                    <a
-                      href="#products"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-primary shadow-lg shadow-black/10 transition hover:bg-primary-50 hover:shadow-xl sm:px-7 sm:text-base"
-                    >
-                      <TrendingDown className="h-5 w-5 shrink-0" />
-                      {t('shopNow')}
-                    </a>
-                    <Link
-                      to="/auctions"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/40 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:border-white/60 hover:bg-white/15 sm:px-7 sm:text-base"
-                    >
-                      <Gavel className="h-5 w-5 shrink-0" />
-                      {t('liveAuctions')}
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <a
-                      href="#products"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-primary shadow-lg shadow-black/10 transition hover:bg-primary-50 hover:shadow-xl sm:px-7 sm:text-base"
-                    >
-                      <TrendingDown className="h-5 w-5 shrink-0" />
-                      {t('shopNow')}
-                    </a>
-                    <Link
-                      to="/auctions"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/40 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:border-white/60 hover:bg-white/15 sm:px-7 sm:text-base"
-                    >
-                      <Gavel className="h-5 w-5 shrink-0" />
-                      {t('liveAuctions')}
-                    </Link>
-                  </>
-                )}
+                <a
+                  href="#products"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-primary shadow-lg shadow-black/10 transition hover:bg-primary-50 hover:shadow-xl sm:px-7 sm:text-base"
+                >
+                  <TrendingDown className="h-5 w-5 shrink-0" />
+                  {t('shopNow')}
+                </a>
+                <Link
+                  to="/deals"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/40 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:border-white/60 hover:bg-white/15 sm:px-7 sm:text-base"
+                >
+                  <TrendingDown className="h-5 w-5 shrink-0" />
+                  {t('shopNavDeals')}
+                </Link>
               </div>
             </div>
           </div>
@@ -486,38 +506,33 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Tamara ad banner */}
+      {/* Tamara banner — full width (certified strip is woven into the product grid below) */}
       <section className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
-          <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-8" dir="ltr">
-            {/* Logo — order-4 in AR (rightmost) */}
-            <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-4' : 'sm:order-1'}`}>
-              <img
-                src={lang === 'ar' ? tamaraArUrl : tamaraEnUrl}
-                alt="Tamara"
-                className="h-12 sm:h-14 w-auto object-contain rounded-xl"
-              />
-            </div>
-
-            {/* Divider — stays next to logo, order-3 in AR */}
-            <div className={`hidden sm:block w-px h-12 bg-gray-200 dark:bg-gray-700 flex-shrink-0 ${lang === 'ar' ? 'sm:order-3' : 'sm:order-2'}`} />
-
-            {/* Text — order-2 in AR */}
-            <div className={`flex-1 min-w-0 text-center ${lang === 'ar' ? 'sm:order-2 sm:text-right' : 'sm:order-3 sm:text-left'}`}>
-              <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
-                {t('tamaraAdHeadline')}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {t('tamaraAdSub')}
-              </p>
-            </div>
-
-            {/* Badge — order-1 in AR (leftmost) */}
-            <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-1' : 'sm:order-4'}`}>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-4 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                {t('tamaraAdBadge')}
-              </span>
+          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/50 sm:p-5">
+            <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6" dir="ltr">
+                <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-4' : 'sm:order-1'}`}>
+                  <img
+                    src={lang === 'ar' ? tamaraArUrl : tamaraEnUrl}
+                    alt="Tamara"
+                    className="h-12 sm:h-14 w-auto object-contain rounded-xl"
+                  />
+                </div>
+                <div className={`hidden sm:block w-px h-12 bg-gray-200 dark:bg-gray-700 flex-shrink-0 ${lang === 'ar' ? 'sm:order-3' : 'sm:order-2'}`} />
+                <div className={`flex-1 min-w-0 text-center ${lang === 'ar' ? 'sm:order-2 sm:text-right' : 'sm:order-3 sm:text-left'}`}>
+                  <p className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                    {t('tamaraAdHeadline')}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    {t('tamaraAdSub')}
+                  </p>
+                </div>
+                <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-1' : 'sm:order-4'}`}>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-4 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                    {t('tamaraAdBadge')}
+                  </span>
+                </div>
             </div>
           </div>
         </div>
@@ -558,7 +573,8 @@ export default function HomePage() {
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="input w-auto text-sm py-2 pr-8 cursor-pointer"
+            className={SORT_SELECT_CLASS}
+            aria-label={t('sort')}
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -649,35 +665,54 @@ export default function HomePage() {
               ))}
             </div>
 
-            {category && (SUBCATEGORIES[category]?.length > 0) && (
-              <div className="lg:hidden flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-2">
-                <button
-                  type="button"
-                  onClick={() => setSubcategory(null)}
-                  className={`flex-shrink-0 px-3.5 py-2 rounded-full text-xs font-medium transition-all ${
-                    subcategory == null
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
-                  }`}
-                >
-                  {t('all')}
-                </button>
-                {SUBCATEGORIES[category].map((sub) => (
-                  <button
-                    type="button"
-                    key={sub}
-                    onClick={() => setSubcategory(sub)}
-                    className={`flex-shrink-0 px-3.5 py-2 rounded-full text-xs font-medium transition-all whitespace-nowrap ${
-                      subcategory === sub
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
-                    }`}
-                  >
-                    {formatSubcategoryChipLabel(category, sub, t)}
-                  </button>
-                ))}
-              </div>
+            {category ? (
+              <>
+                <div className="lg:hidden">
+                  <SubcategoryAuctionBlock
+                    selectedWorld={category}
+                    selectedSubcategory={subcategory}
+                    onSubcategoryTap={setSubcategory}
+                    onOpenAuctionRoom={setOpenAuctionRoomId}
+                  />
+                </div>
+                <div className="hidden lg:block">
+                  <AuctionRailSection
+                    selectedWorld={category}
+                    selectedSubcategory={subcategory}
+                    onOpenRoom={setOpenAuctionRoomId}
+                  />
+                </div>
+              </>
+            ) : (
+              <AuctionRailSection
+                selectedWorld={null}
+                selectedSubcategory={null}
+                onOpenRoom={setOpenAuctionRoomId}
+              />
             )}
+
+            {!q && !loading ? (
+              <>
+                <ProductRailSection
+                  title={t('shopBestSellers')}
+                  subtitle={t('shopBestSellersSub')}
+                  products={bestSellerProducts}
+                  deliveryIsFree={deliveryIsFree}
+                />
+                <ProductRailSection
+                  title={t('shopNewArrivals')}
+                  subtitle={t('shopNewArrivalsSub')}
+                  products={newArrivalProducts}
+                  deliveryIsFree={deliveryIsFree}
+                />
+                <div className="mb-4 px-0.5">
+                  <h2 className="section-title">{t('homeTabNewProducts')}</h2>
+                  <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                    {t('shopTrendingSub')}
+                  </p>
+                </div>
+              </>
+            ) : null}
 
             {/* Active filters */}
             {(category || subcategory || q) && (
@@ -738,7 +773,15 @@ export default function HomePage() {
                     onAcceptedClick={() => handleAcceptedOfferClick(entry)}
                   />
                 ))}
-                {filteredForGrid.map((product) => (
+                {firstCatalogChunk.map((product) => (
+                  <ProductCard key={product._id} product={product} deliveryIsFree={deliveryIsFree} />
+                ))}
+                {showCertifiedInGrid ? (
+                  <div className="col-span-full my-1">
+                    <CertifiedProductsBanner />
+                  </div>
+                ) : null}
+                {restCatalogChunk.map((product) => (
                   <ProductCard key={product._id} product={product} deliveryIsFree={deliveryIsFree} />
                 ))}
               </div>
@@ -746,6 +789,13 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {openAuctionRoomId ? (
+        <AuctionRoomModal
+          roomId={openAuctionRoomId}
+          onClose={() => setOpenAuctionRoomId(null)}
+        />
+      ) : null}
     </div>
   );
 }

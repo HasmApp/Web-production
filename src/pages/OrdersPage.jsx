@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { fetchMyOrders } from '../services/api.js';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
-import EmptyState from '../components/common/EmptyState.jsx';
+import TabEmptyState from '../components/layout/TabEmptyState.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
@@ -175,7 +175,7 @@ export default function OrdersPage() {
       <h1 className="section-title mb-8">{t('myOrders')}</h1>
 
       {orders.length === 0 ? (
-        <EmptyState
+        <TabEmptyState
           icon={Package}
           title={t('noOrdersYet')}
           description={t('noOrdersDesc')}

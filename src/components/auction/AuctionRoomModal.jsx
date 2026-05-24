@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X, Package, ChevronLeft, ChevronRight, Users,
-  TrendingUp, Gavel, Clock,
+  TrendingUp, Gavel, Clock, ShoppingCart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { fetchAuctionById, placeBid, resolveMediaUrl } from '../../services/api.js';
+import {
+  fetchAuctionById,
+  fetchMyAuctionWins,
+  placeBid,
+  resolveMediaUrl,
+} from '../../services/api.js';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useCart } from '../../contexts/CartContext.jsx';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
+import { checkoutAuctionWinSafe } from '../../utils/auctionCheckout.js';
 import { apiErrorMessage } from '../../utils/apiErrorMessage.js';
 import { formatProductCategory } from '../../utils/formatProductCategory.js';
 import CountdownTimer from './CountdownTimer.jsx';
@@ -16,14 +24,18 @@ import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
 import { isPickupOnlyProduct } from '../../utils/productFlags.js';
 
 export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
-  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
+  const { addItem } = useCart();
   const { lang, t, tf } = useLanguage();
 
   const [room, setRoom] = useState(null);
+  const [myWins, setMyWins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [imgIdx, setImgIdx] = useState(0);
   const [bidAmount, setBidAmount] = useState('');
   const [bidding, setBidding] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
 
   const load = async () => {
     try {
@@ -38,6 +50,22 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   };
 
   useEffect(() => { load(); }, [roomId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setMyWins([]);
+      return;
+    }
+    let cancelled = false;
+    fetchMyAuctionWins()
+      .then((data) => {
+        if (!cancelled) setMyWins(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setMyWins([]);
+      });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, roomId]);
 
   // Close on Escape
   useEffect(() => {
@@ -94,6 +122,38 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const timeRemaining = room?.time_remaining ?? room?.timeRemaining;
   const endTime = room?.end_time || room?.endTime;
   const pickupOnly = isPickupOnlyProduct(product);
+  const isEnded = Number(timeRemaining ?? 0) <= 0 || room?.is_active === false || room?.isActive === false;
+  const winnerId = room?.winner_id ?? room?.winnerId;
+  const userId = user?.id ?? user?._id;
+  const wonFromApi = myWins.some((w) => String(w.id || w._id) === String(roomId));
+  const isUserWinner = isAuthenticated && (wonFromApi || (winnerId && userId && String(winnerId) === String(userId)));
+  const showPurchaseWin = isUserWinner && isEnded;
+
+  const handlePurchaseWin = async () => {
+    if (!isAuthenticated) {
+      toast.error(t('loginToBid'));
+      return;
+    }
+    const summary = myWins.find((w) => String(w.id || w._id) === String(roomId)) || {
+      id: roomId,
+      _id: roomId,
+      current_price: currentPrice,
+      product_image: product?.image,
+      product,
+    };
+    setPurchasing(true);
+    await checkoutAuctionWinSafe({
+      room: summary,
+      addItem,
+      navigate: (path, opts) => {
+        onClose();
+        navigate(path, opts);
+      },
+      t,
+      lang,
+    });
+    setPurchasing(false);
+  };
 
   return (
     <div
@@ -272,40 +332,58 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                   </div>
                 </div>
 
-                {/* Bid form */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                    {t('auctionYourBidLabel')}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={bidAmount}
-                      onChange={(e) => setBidAmount(e.target.value)}
-                      placeholder={t('auctionBidPlaceholder')}
-                      className="input flex-1 py-2.5 text-sm"
-                      min={currentPrice + 0.01}
-                      step="0.01"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleBid}
-                      disabled={bidding || !bidAmount}
-                      className="btn-primary px-4 py-2.5 text-sm flex-shrink-0"
-                    >
-                      {bidding ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <><Gavel className="w-4 h-4" /> {t('placeBid')}</>
-                      )}
-                    </button>
+                {showPurchaseWin ? (
+                  <button
+                    type="button"
+                    onClick={handlePurchaseWin}
+                    disabled={purchasing}
+                    className="btn-primary flex w-full items-center justify-center gap-2 py-3"
+                  >
+                    {purchasing ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    ) : (
+                      <>
+                        <ShoppingCart className="h-4 w-4" />
+                        {t('purchase')}
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      {t('auctionYourBidLabel')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={bidAmount}
+                        onChange={(e) => setBidAmount(e.target.value)}
+                        placeholder={t('auctionBidPlaceholder')}
+                        className="input flex-1 py-2.5 text-sm"
+                        min={currentPrice + 0.01}
+                        step="0.01"
+                        disabled={isEnded}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleBid}
+                        disabled={bidding || !bidAmount || isEnded}
+                        className="btn-primary flex-shrink-0 px-4 py-2.5 text-sm"
+                      >
+                        {bidding ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        ) : (
+                          <><Gavel className="w-4 h-4" /> {t('placeBid')}</>
+                        )}
+                      </button>
+                    </div>
+                    {!isAuthenticated && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {t('loginToBid')}
+                      </p>
+                    )}
                   </div>
-                  {!isAuthenticated && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      {t('loginToBid')}
-                    </p>
-                  )}
-                </div>
+                )}
 
                 {/* Recent bids */}
                 {bids.length > 0 && (

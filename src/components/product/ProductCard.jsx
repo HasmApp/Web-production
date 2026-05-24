@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Package, BadgeCheck, Truck, ArrowRight, TrendingUp } from 'lucide-react';
+import { Heart, Package, BadgeCheck, Truck, ArrowRight, Gavel } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { resolveMediaUrl } from '../../services/api.js';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import SarAmount from '../common/SarAmount.jsx';
 import { formatProductCategory } from '../../utils/formatProductCategory.js';
-import { isPickupOnlyProduct } from '../../utils/productFlags.js';
+import {
+  isPickupOnlyProduct,
+  isPromotionProduct,
+  isAuctionProduct,
+} from '../../utils/productFlags.js';
+import { FLASH_GRADIENT, LIVE_PRICE_TEXT_CLASS } from '../../design/shopTokens.js';
+import { dealDiscountPercent } from '../../utils/productFeedFilters.js';
 import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
 
 const FAVORITES_KEY = 'hasm_favorites';
@@ -22,8 +28,10 @@ export default function ProductCard({
   onAcceptedClick,
   /** When true, show a small free-delivery tag (matches mobile when delivery fee is 0). */
   deliveryIsFree = false,
+  /** Deals tab: show minimum price + initial strikethrough (matches mobile `dealPriceDisplay`). */
+  dealPriceDisplay = false,
 }) {
-  const { lang, t } = useLanguage();
+  const { lang, t, tf } = useLanguage();
   const isAccepted = acceptedOffer != null && typeof onAcceptedClick === 'function';
   const [isFav, setIsFav] = useState(false);
   const [priceChanged, setPriceChanged] = useState(false);
@@ -37,15 +45,16 @@ export default function ProductCard({
   }, [product._id]);
 
   useEffect(() => {
-    if (isAccepted) return;
+    if (isAccepted || dealPriceDisplay) return;
     const newPrice = product.current_price ?? product.currentPrice ?? 0;
     if (newPrice !== displayPrice) {
       setPriceChanged(true);
       setDisplayPrice(newPrice);
       setTimeout(() => setPriceChanged(false), 600);
     }
-  }, [product.current_price, product.currentPrice, isAccepted]);
+  }, [product.current_price, product.currentPrice, isAccepted, dealPriceDisplay]);
 
+  const minimum = product.minimum_price ?? product.minimumPrice ?? 0;
   const toggleFav = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -60,24 +69,21 @@ export default function ProductCard({
 
   const initial = product.initial_price ?? product.initialPrice ?? 0;
   const offered = acceptedOffer?.price;
-  const current = offered != null ? offered : displayPrice;
+  const current = offered != null
+    ? offered
+    : (dealPriceDisplay ? minimum : displayPrice);
+  const strikePrice = dealPriceDisplay ? initial : initial;
   const image = resolveMediaUrl((product.images?.[0]) || product.image || '');
   const title =
     lang === 'ar'
       ? (product.title_ar || product.titleAr || product.title || '')
       : (product.title_en || product.titleEn || product.title || '');
   const categoryLabel = formatProductCategory(product.category || '', t);
-  const msrpUnit = Number(product.msrp ?? product.MSRP);
-  const fullStockQty =
-    Number(product.quantity_full ?? product.quantityFull ?? product.quantity ?? product.stock ?? 0);
-  const expectedProfitDiff =
-    Number.isFinite(msrpUnit) &&
-    msrpUnit > current &&
-    Number.isFinite(fullStockQty) &&
-    fullStockQty > 0
-      ? (msrpUnit - current) * fullStockQty
-      : null;
   const pickupOnly = isPickupOnlyProduct(product);
+  const hasPromotion = isPromotionProduct(product);
+  const isLiveAuction = isAuctionProduct(product);
+  const discountPct = dealPriceDisplay && !isAccepted ? dealDiscountPercent(product) : null;
+  const hasLiveDiscount = !isAccepted && strikePrice > current;
 
   const shellClass = `group flex flex-col min-w-0 text-start no-underline text-inherit rounded-xl bg-white dark:bg-gray-900 shadow-md transition-all duration-300 hover:opacity-[0.97] ${
     isAccepted
@@ -90,7 +96,7 @@ export default function ProductCard({
       {/* Image — white frame + ~0.92 aspect (matches mobile ProductCard) */}
       <div className="px-2 pt-2">
         <div
-          className={`relative w-full overflow-hidden rounded-xl bg-white dark:bg-gray-900 aspect-[100/82] ${
+          className={`relative w-full overflow-hidden rounded-xl bg-white aspect-[100/82] ${
             isAccepted
               ? 'ring-2 ring-inset ring-emerald-500/80 dark:ring-emerald-400/70'
               : ''
@@ -119,6 +125,24 @@ export default function ProductCard({
           >
             <Heart className="h-4 w-4" fill={isFav ? 'currentColor' : 'none'} />
           </button>
+          {!isAccepted && hasPromotion ? (
+            <div
+              className="absolute top-3 start-3 rounded-lg px-2.5 py-1 text-[10px] font-extrabold text-white shadow-md sm:text-xs"
+              style={{ background: FLASH_GRADIENT }}
+              dir="auto"
+            >
+              {t('badgeBogoFree')}
+            </div>
+          ) : null}
+          {!isAccepted && discountPct != null ? (
+            <div
+              className="absolute bottom-3 end-3 flex min-h-[18px] items-center justify-center rounded bg-[#C05050] px-1.5 text-[10px] font-bold leading-none text-white"
+              dir="auto"
+              aria-label={tf('percentOff', { n: discountPct })}
+            >
+              {tf('badgeDealSticker', { n: discountPct })}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -133,26 +157,30 @@ export default function ProductCard({
         </h3>
         {/* Quantity/stock hidden by request */}
         <div className="mt-auto pt-1">
-          <div className="flex items-baseline gap-1.5">
+          <div className="flex flex-wrap items-baseline gap-1.5">
             <SarAmount
               amount={current}
               iconSize={15}
               className={`text-lg font-bold transition-all duration-300 ${
                 isAccepted
                   ? 'text-emerald-600 dark:text-emerald-400'
-                  : `text-primary ${priceChanged ? 'scale-110 text-red-500' : ''}`
+                  : hasLiveDiscount
+                    ? `${LIVE_PRICE_TEXT_CLASS} ${priceChanged ? 'scale-110' : ''}`
+                    : `text-gray-900 dark:text-white ${priceChanged ? 'scale-110' : ''}`
               }`}
               numberClassName={`text-lg font-bold ${
                 isAccepted
                   ? 'text-emerald-600 dark:text-emerald-400'
-                  : `${priceChanged ? 'text-red-500' : 'text-primary'}`
+                  : hasLiveDiscount
+                    ? LIVE_PRICE_TEXT_CLASS
+                    : 'text-gray-900 dark:text-white'
               }`}
             />
           </div>
-          {!isAccepted && initial > current && (
+          {!isAccepted && strikePrice > current && (
             <p className="mt-0.5 text-sm text-gray-400 line-through decoration-2 decoration-gray-400">
               <SarAmount
-                amount={initial}
+                amount={strikePrice}
                 iconSize={13}
                 className="text-sm text-gray-400 line-through decoration-2 decoration-gray-400"
                 numberClassName="text-gray-400 line-through decoration-2 decoration-gray-400"
@@ -169,31 +197,16 @@ export default function ProductCard({
               />
             </p>
           )}
-          {expectedProfitDiff != null && !isAccepted && (
-            <div className="mt-0.5 flex w-full justify-start">
-              <div
-                className="flex max-w-full flex-wrap items-baseline gap-1 text-start text-[11px] font-extrabold leading-snug text-emerald-600 dark:text-emerald-400"
-                dir={lang === 'ar' ? 'rtl' : 'ltr'}
-              >
-                <TrendingUp className="h-3 w-3 shrink-0 self-center text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
-                <span className="min-w-0 shrink" dir="auto">
-                  {t('expectedProfitDiff')}
-                  {' : '}
-                </span>
-                <SarAmount
-                  amount={expectedProfitDiff}
-                  iconSize={11}
-                  prefix="+"
-                  className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
-                  numberClassName="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400"
-                />
-              </div>
-            </div>
-          )}
           {isAccepted ? (
             <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
               <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
               {t('acceptedOffer')}
+            </div>
+          ) : null}
+          {!isAccepted && isLiveAuction ? (
+            <div className="mt-1.5 inline-flex max-w-full items-center gap-0.5 rounded bg-primary px-1.5 py-0.5 text-[8px] font-bold text-white">
+              <Gavel className="h-2.5 w-2.5 shrink-0" strokeWidth={2.5} aria-hidden />
+              <span className="leading-tight">{t('productAuctionBadge')}</span>
             </div>
           ) : null}
           {!isAccepted && pickupOnly ? (
