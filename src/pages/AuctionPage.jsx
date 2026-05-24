@@ -23,6 +23,7 @@ import CountdownTimer from '../components/auction/CountdownTimer.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
+import { excludePackageAuctionRooms } from '../utils/auctionUtils.js';
 import { isPickupOnlyAuctionRoom } from '../utils/productFlags.js';
 import config from '../config/config.js';
 
@@ -306,12 +307,12 @@ export default function AuctionPage() {
     if (!silent) setLoading(true);
     try {
       const data = await fetchAuctions();
-      const arr = Array.isArray(data) ? data : [];
+      const arr = excludePackageAuctionRooms(Array.isArray(data) ? data : []);
       const enrichedAuctions = await enrichAuctionRoomsFromDetail(arr, lang);
       setAuctions(enrichedAuctions);
       if (isAuthenticated) {
         const wonData = await fetchMyAuctionWins();
-        const winsArr = Array.isArray(wonData) ? wonData : [];
+        const winsArr = excludePackageAuctionRooms(Array.isArray(wonData) ? wonData : []);
         setWins(await enrichAuctionRoomsFromDetail(winsArr, lang));
       } else {
         setWins([]);

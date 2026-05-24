@@ -1,5 +1,6 @@
 import { parseProductCategory } from './formatProductCategory.js';
 import { normalizeProduct, fetchAuctionById } from '../services/api.js';
+import { isBundlePackageProduct } from './productFlags.js';
 
 function firstNonEmpty(obj, keys) {
   if (!obj || typeof obj !== 'object') return '';
@@ -47,8 +48,20 @@ export function auctionRoomListTitle(room, lang, fallback) {
   return fb || fallback;
 }
 
+/** Bundle/package dashboard listings must not appear in consumer live auction rails. */
+export function isPackageAuctionRoom(room) {
+  if (room == null || typeof room !== 'object') return false;
+  if (isBundlePackageProduct(room)) return true;
+  if (isBundlePackageProduct(room.product)) return true;
+  return false;
+}
+
+export function excludePackageAuctionRooms(rooms) {
+  return (Array.isArray(rooms) ? rooms : []).filter((room) => !isPackageAuctionRoom(room));
+}
+
 export function filterAuctionRooms(rooms, { world, subcategory } = {}) {
-  const list = Array.isArray(rooms) ? rooms : [];
+  const list = excludePackageAuctionRooms(rooms);
   if (!world) return list;
   return list.filter((room) => {
     const parsed = parseProductCategory(room.product_category ?? room.productCategory);
