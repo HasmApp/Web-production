@@ -23,12 +23,9 @@ export const SHOP_SUBCATEGORIES = {
     'Other',
   ],
   HomeLiving: ['Bedding', 'Home Essentials', 'Home Decor', 'Other'],
-  Kitchen: ['Coffee Tools', 'Kitchen Tools', 'Other'],
+  Kitchen: ['Coffee Tools', 'Kitchen Tools', 'Foods', 'Other'],
   LifeStyle: ['Tech Accessories', 'Office Supplies', "Kids' Toys", 'Other'],
 };
-
-/** Main categories hidden from shopper UI (dashboard-only). */
-export const HIDDEN_FROM_SHOP_MAIN_CATEGORIES = new Set(['Food']);
 
 export function parseProductMainAndSub(product) {
   const raw = (product?.category ?? '').toString().trim();
@@ -37,27 +34,39 @@ export function parseProductMainAndSub(product) {
   return { main: (main || '').trim(), sub: (rest.join('|') || '').trim() };
 }
 
-/** Food main category + legacy Kitchen|Foods listings stay off web/mobile. */
-export function isHiddenFromShop(product) {
-  const { main, sub } = parseProductMainAndSub(product);
-  if (!main) return false;
-  if (HIDDEN_FROM_SHOP_MAIN_CATEGORIES.has(main)) return true;
-  if (main === 'Kitchen' && sub.toLowerCase() === 'foods') return true;
+/** Shopper-facing world + sub (dashboard `Food` → Kitchen / Foods). */
+export function resolveShopCategory(raw) {
+  const { main, sub } = parseProductMainAndSub({ category: raw });
+  if (main === 'Food') {
+    return { main: 'Kitchen', sub: sub || 'Foods' };
+  }
+  if (main === 'Kitchen' && sub.toLowerCase() === 'foods') {
+    return { main: 'Kitchen', sub: 'Foods' };
+  }
+  return { main, sub };
+}
+
+export function isHiddenFromShop(_product) {
   return false;
 }
 
 export function excludeHiddenShopProducts(products) {
-  return (Array.isArray(products) ? products : []).filter((p) => !isHiddenFromShop(p));
+  return Array.isArray(products) ? products : [];
 }
 
 export function productMatchesCategory(product, categoryId) {
   if (!categoryId) return true;
-  const raw = (product?.category ?? '').toString().trim();
-  if (!raw) return false;
-  const lower = raw.toLowerCase();
+  const { main } = resolveShopCategory(product?.category);
+  if (!main) return false;
+  const mainLower = main.toLowerCase();
   const want = categoryId.toLowerCase();
-  if (lower === want || lower.startsWith(`${want}|`)) return true;
-  const main = lower.split('|')[0] || lower;
-  if (want === 'homeliving' && main === 'home') return true;
+  if (mainLower === want) return true;
+  if (want === 'homeliving' && mainLower === 'home') return true;
   return false;
+}
+
+export function productMatchesSubcategory(product, subcategory) {
+  if (!subcategory) return true;
+  const { sub } = resolveShopCategory(product?.category);
+  return sub.toLowerCase() === subcategory.toLowerCase();
 }

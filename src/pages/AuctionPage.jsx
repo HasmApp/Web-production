@@ -22,9 +22,7 @@ import EmptyState from '../components/common/EmptyState.jsx';
 import CountdownTimer from '../components/auction/CountdownTimer.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
-import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 import { excludePackageAuctionRooms } from '../utils/auctionUtils.js';
-import { isPickupOnlyAuctionRoom } from '../utils/productFlags.js';
 import { checkoutAuctionWinSafe } from '../utils/auctionCheckout.js';
 import config from '../config/config.js';
 
@@ -138,7 +136,6 @@ function AuctionCard({ room, onOpen }) {
   const title = auctionRoomListTitle(room, lang, t('auctionItemFallback'));
 
   const image = resolveMediaUrl(room.product_image || room.productImage || room.image || '');
-  const pickupOnly = isPickupOnlyAuctionRoom(room);
 
   return (
     <div
@@ -168,7 +165,7 @@ function AuctionCard({ room, onOpen }) {
             <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white animate-pulse shrink-0" />
             {t('liveBadge')}
           </div>
-          {pickupOnly ? <PickupOnlyBadge size="sm" /> : null}
+          {/* pickup-only badge intentionally shown only inside AuctionRoomModal */}
         </div>
 
         {/* Countdown — uses time_remaining seed (mirrors mobile) */}
@@ -183,9 +180,11 @@ function AuctionCard({ room, onOpen }) {
 
       {/* Info */}
       <div className="p-4 sm:p-5 space-y-3">
-        <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white line-clamp-2 leading-snug">
-          {title}
-        </h3>
+        <div className="flex items-start gap-2">
+          <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white line-clamp-2 leading-snug flex-1 min-w-0">
+            {title}
+          </h3>
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
@@ -254,12 +253,17 @@ export default function AuctionPage() {
     try {
       const data = await fetchAuctions();
       const arr = excludePackageAuctionRooms(Array.isArray(data) ? data : []);
-      const enrichedAuctions = await enrichAuctionRoomsFromDetail(arr, lang);
-      setAuctions(enrichedAuctions);
+      setAuctions(arr);
+      enrichAuctionRoomsFromDetail(arr, lang)
+        .then(setAuctions)
+        .catch(() => {});
       if (isAuthenticated) {
         const wonData = await fetchMyAuctionWins();
         const winsArr = excludePackageAuctionRooms(Array.isArray(wonData) ? wonData : []);
-        setWins(await enrichAuctionRoomsFromDetail(winsArr, lang));
+        setWins(winsArr);
+        enrichAuctionRoomsFromDetail(winsArr, lang)
+          .then(setWins)
+          .catch(() => {});
       } else {
         setWins([]);
       }
@@ -453,7 +457,6 @@ export default function AuctionPage() {
             const winTitle = auctionRoomListTitle(room, lang, t('auctionItemFallback'));
             const winImage = resolveMediaUrl(room.product_image || room.image || '');
             const winPrice = room.current_price ?? room.currentPrice ?? 0;
-            const winPickupOnly = isPickupOnlyAuctionRoom(room);
             return (
               <div
                 key={room.id || room._id}
@@ -472,7 +475,7 @@ export default function AuctionPage() {
                     <div className="flex items-center gap-1.5 bg-emerald-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
                       <Trophy className="w-4 h-4 shrink-0" /> {t('wonBadge')}
                     </div>
-                    {winPickupOnly ? <PickupOnlyBadge size="sm" /> : null}
+                    {/* pickup-only badge intentionally shown only inside AuctionRoomModal */}
                   </div>
                 </div>
                 <div className="p-4 sm:p-5">

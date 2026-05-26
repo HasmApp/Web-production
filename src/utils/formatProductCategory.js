@@ -1,3 +1,5 @@
+import { resolveShopCategory } from '../constants/shopCategories.js';
+
 /**
  * Same parsing as Mobile-production `ProductService.parseCategory` (split on `|`,
  * main = parts[0], sub = parts[1] only).
@@ -22,7 +24,7 @@ export function parseProductCategory(raw) {
  * - Unknown: return API segment unchanged (Flutter default branch).
  */
 export function formatProductCategory(raw, t) {
-  const { category: mainRaw, subcategory: subRaw } = parseProductCategory(raw);
+  const { main: mainRaw, sub: subRaw } = resolveShopCategory(raw);
   if (!mainRaw && !subRaw) return '';
 
   if (subRaw) {

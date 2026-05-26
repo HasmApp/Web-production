@@ -226,10 +226,13 @@ export const createOrderWithTransferProof = async ({
 
 export const fetchAuctions = async () => {
   const res = await api.get('/auctions/', {
-    params: { limit: 100, _ts: Date.now() },
+    params: { limit: 500, _ts: Date.now() },
     headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
   });
-  return res.data;
+  const data = res.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
 };
 
 export const fetchAuctionById = async (id) => {

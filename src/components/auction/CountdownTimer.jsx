@@ -14,9 +14,19 @@ export default function CountdownTimer({ timeRemaining: seedSeconds, endTime, cl
   const deadlineMsRef = useRef(null);
   const prevSeedRef = useRef(seedSeconds);
 
+  const parseEndMs = useCallback((end) => {
+    if (end == null || end === '') return NaN;
+    const s = String(end).trim();
+    if (!s) return NaN;
+    if (/[zZ]$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) {
+      return new Date(s).getTime();
+    }
+    return new Date(`${s.replace(/\.\d+$/, '')}Z`).getTime();
+  }, []);
+
   const computeFromProps = useCallback(() => {
     if (endTime) {
-      const endMs = new Date(endTime).getTime();
+      const endMs = parseEndMs(endTime);
       if (Number.isFinite(endMs)) {
         deadlineMsRef.current = endMs;
         return Math.max(0, Math.floor((endMs - Date.now()) / 1000));

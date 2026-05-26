@@ -1,4 +1,4 @@
-import { normalizeProduct, fetchAuctionById } from '../services/api.js';
+import { normalizeProduct, fetchAuctionById, fetchProductById } from '../services/api.js';
 import { isAuctionWonCartItem, readAuctionWinCheckoutRoomId } from './supplierCart.js';
 
 function firstNonEmpty(obj, keys) {
@@ -94,28 +94,26 @@ function roomAllowQuarterHalf(room) {
   return roomSellFullFlag(room);
 }
 
-/** B2B bundle / full-lot stock (wholesalers only). */
-export function isB2bAuctionRoom(room) {
+/** Dashboard package / bulk lot — wholesalers B2B only. */
+export function isBundleLotAuctionRoom(room) {
   if (room == null || typeof room !== 'object') return false;
   if (truthyFlag(room.bundle_full_lot_only ?? room.bundleFullLotOnly)) return true;
   const product = roomProduct(room);
-  if (product && truthyFlag(product.bundle_full_lot_only ?? product.bundleFullLotOnly)) {
-    return true;
-  }
+  return !!(product && truthyFlag(product.bundle_full_lot_only ?? product.bundleFullLotOnly));
+}
+
+/** B2B bundle / full-lot stock (wholesalers only). */
+export function isB2bAuctionRoom(room) {
+  if (room == null || typeof room !== 'object') return false;
+  if (isBundleLotAuctionRoom(room)) return true;
   if (!roomSellFullFlag(room)) return false;
   return !roomAllowQuarterHalf(room);
 }
 
-/** B2C retail — same rule as mobile auction rail. */
+/** B2C retail — single listing + by-pieces; hide wholesale package lots only. */
 export function isB2cRetailAuctionRoom(room) {
   if (room == null || typeof room !== 'object') return false;
-  if (truthyFlag(room.bundle_full_lot_only ?? room.bundleFullLotOnly)) return false;
-  const product = roomProduct(room);
-  if (product && truthyFlag(product.bundle_full_lot_only ?? product.bundleFullLotOnly)) {
-    return false;
-  }
-  if (!roomSellFullFlag(room)) return true;
-  return roomAllowQuarterHalf(room);
+  return !isBundleLotAuctionRoom(room);
 }
 
 /** @deprecated — use isB2bAuctionRoom */
@@ -137,22 +135,35 @@ export function filterWonAuctionRooms(rooms) {
   return (Array.isArray(rooms) ? rooms : []).filter(isB2cRetailAuctionRoom);
 }
 
-/** Seconds left — prefers server end_time (stable after client sleep). */
-export function auctionRemainingSeconds(room) {
-  const end = room?.end_time ?? room?.endTime;
-  if (end) {
-    const endMs = new Date(end).getTime();
-    if (Number.isFinite(endMs)) {
-      return Math.max(0, Math.floor((endMs - Date.now()) / 1000));
-    }
+/** Parse auction end as UTC (API stores naive UTC; avoid local-time misreads). */
+export function parseAuctionEndMs(end) {
+  if (end == null || end === '') return NaN;
+  const s = String(end).trim();
+  if (!s) return NaN;
+  if (/[zZ]$/.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) {
+    return new Date(s).getTime();
   }
-  return Math.max(0, Number(room?.time_remaining ?? room?.timeRemaining ?? 0));
+  return new Date(`${s.replace(/\.\d+$/, '')}Z`).getTime();
 }
 
+/** Seconds left — match mobile: trust API time_remaining, then UTC end_time. */
+export function auctionRemainingSeconds(room) {
+  const serverRemaining = Number(room?.time_remaining ?? room?.timeRemaining);
+  if (Number.isFinite(serverRemaining) && serverRemaining > 0) {
+    return Math.floor(serverRemaining);
+  }
+  const endMs = parseAuctionEndMs(room?.end_time ?? room?.endTime);
+  if (Number.isFinite(endMs)) {
+    return Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+  }
+  return Number.isFinite(serverRemaining) ? Math.max(0, Math.floor(serverRemaining)) : 0;
+}
+
+/** Live room — same rule as mobile auction rail. */
 export function isActiveAuctionRoom(room) {
-  const remaining = auctionRemainingSeconds(room);
   const active = room?.is_active ?? room?.isActive;
-  return remaining > 0 && active !== false;
+  if (active === false) return false;
+  return auctionRemainingSeconds(room) > 0;
 }
 
 export function activeAuctionProductIds(rooms) {
@@ -207,7 +218,32 @@ export function pruneStaleAuctionWonCartItems(cartItems, myWins, pendingOrders, 
 
 const detailCache = new Map();
 
-export async function enrichAuctionRoomsFromDetail(rooms, lang) {
+function mergeAuctionRoomFlags(room, prod) {
+  if (!prod) return room;
+  const pick = (snake, camel) => {
+    if (room != null && (snake in room || camel in room)) {
+      return room[snake] ?? room[camel];
+    }
+    return prod[snake] ?? prod[camel];
+  };
+  return {
+    ...room,
+    product: room.product ?? prod,
+    bundle_full_lot_only: pick('bundle_full_lot_only', 'bundleFullLotOnly'),
+    bundleFullLotOnly: pick('bundle_full_lot_only', 'bundleFullLotOnly'),
+    sell_full_quantity_only: pick('sell_full_quantity_only', 'sellFullQuantityOnly'),
+    sellFullQuantityOnly: pick('sell_full_quantity_only', 'sellFullQuantityOnly'),
+    allow_quarter_quantity: pick('allow_quarter_quantity', 'allowQuarterQuantity'),
+    allowQuarterQuantity: pick('allow_quarter_quantity', 'allowQuarterQuantity'),
+        allow_half_quantity: pick('allow_half_quantity', 'allowHalfQuantity'),
+        allowHalfQuantity: pick('allow_half_quantity', 'allowHalfQuantity'),
+        pickup_only: pick('pickup_only', 'pickupOnly'),
+        pickupOnly: pick('pickup_only', 'pickupOnly'),
+      };
+}
+
+/** Optional: enrich flags from detail — never required for the list rail. */
+export async function enrichAuctionRoomsFromDetail(rooms) {
   if (!Array.isArray(rooms) || rooms.length === 0) return rooms;
   return Promise.all(
     rooms.map(async (room) => {
@@ -216,37 +252,14 @@ export async function enrichAuctionRoomsFromDetail(rooms, lang) {
       if (!prod) {
         const detail = await fetchAuctionById(id).catch(() => null);
         prod = detail?.product ? normalizeProduct(detail.product) : null;
+        const pid = room.product_id ?? room.productId ?? detail?.product_id;
+        if (!prod && pid) {
+          const row = await fetchProductById(pid).catch(() => null);
+          if (row) prod = normalizeProduct(row);
+        }
         if (prod) detailCache.set(id, prod);
       }
-      if (!prod) return room;
-      return {
-        ...room,
-        product: room.product ?? prod,
-        bundle_full_lot_only:
-          room.bundle_full_lot_only ?? room.bundleFullLotOnly
-          ?? prod.bundle_full_lot_only ?? prod.bundleFullLotOnly,
-        bundleFullLotOnly:
-          room.bundle_full_lot_only ?? room.bundleFullLotOnly
-          ?? prod.bundle_full_lot_only ?? prod.bundleFullLotOnly,
-        sell_full_quantity_only:
-          room.sell_full_quantity_only ?? room.sellFullQuantityOnly
-          ?? prod.sell_full_quantity_only ?? prod.sellFullQuantityOnly,
-        sellFullQuantityOnly:
-          room.sell_full_quantity_only ?? room.sellFullQuantityOnly
-          ?? prod.sell_full_quantity_only ?? prod.sellFullQuantityOnly,
-        allow_quarter_quantity:
-          room.allow_quarter_quantity ?? room.allowQuarterQuantity
-          ?? prod.allow_quarter_quantity ?? prod.allowQuarterQuantity,
-        allowQuarterQuantity:
-          room.allow_quarter_quantity ?? room.allowQuarterQuantity
-          ?? prod.allow_quarter_quantity ?? prod.allowQuarterQuantity,
-        allow_half_quantity:
-          room.allow_half_quantity ?? room.allowHalfQuantity
-          ?? prod.allow_half_quantity ?? prod.allowHalfQuantity,
-        allowHalfQuantity:
-          room.allow_half_quantity ?? room.allowHalfQuantity
-          ?? prod.allow_half_quantity ?? prod.allowHalfQuantity,
-      };
+      return mergeAuctionRoomFlags(room, prod);
     }),
   );
 }

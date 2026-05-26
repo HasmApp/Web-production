@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
-import AuctionRailSection from '../components/auction/AuctionRailSection.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import ProductRailSection from '../components/shop/ProductRailSection.jsx';
 import { fetchMyPriceRequests, fetchProductById, fetchProducts, fetchAppConfig } from '../services/api.js';
@@ -19,6 +18,10 @@ import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { useCart } from '../contexts/CartContext.jsx';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
 import { parseProductCategory, formatSubcategoryChipLabel } from '../utils/formatProductCategory.js';
+import {
+  productMatchesCategory as shopProductMatchesCategory,
+  productMatchesSubcategory,
+} from '../constants/shopCategories.js';
 import { productCountLabel } from '../utils/productCountLabel.js';
 import { isBundlePackageProduct } from '../utils/productFlags.js';
 import {
@@ -54,23 +57,9 @@ const SUBCATEGORIES = {
     'Other',
   ],
   HomeLiving: ['Bedding', 'Home Essentials', 'Home Decor', 'Other'],
-  Kitchen: ['Coffee Tools', 'Kitchen Tools', 'Other'],
+  Kitchen: ['Coffee Tools', 'Kitchen Tools', 'Foods', 'Other'],
   LifeStyle: ['Tech Accessories', 'Office Supplies', "Kids' Toys", 'Other'],
 };
-
-/** Match API format: exact "Fashion" or "Fashion|Subcategory" (see product-service search_products). */
-function productMatchesCategory(product, categoryId) {
-  if (!categoryId) return true;
-  const raw = (product.category ?? '').toString().trim();
-  if (!raw) return false;
-  const lower = raw.toLowerCase();
-  const want = categoryId.toLowerCase();
-  if (lower === want || lower.startsWith(`${want}|`)) return true;
-  const main = lower.split('|')[0] || lower;
-  // Legacy rows may use "Home" before dashboard standardized on "HomeLiving"
-  if (want === 'homeliving' && main === 'home') return true;
-  return false;
-}
 
 function productIdKey(p) {
   if (!p) return '';
@@ -278,11 +267,8 @@ export default function HomePage() {
           .map((s) => String(s).toLowerCase());
         if (!blobs.some((b) => b.includes(ql))) return false;
       }
-      if (!productMatchesCategory(p, category)) return false;
-      if (subcategory) {
-        const { subcategory: prodSub } = parseProductCategory(p.category);
-        if (!prodSub || prodSub.toLowerCase() !== subcategory.toLowerCase()) return false;
-      }
+      if (!shopProductMatchesCategory(p, category)) return false;
+      if (subcategory && !productMatchesSubcategory(p, subcategory)) return false;
       return true;
     });
     list = filterHomeFeedTab(list, 'new');
@@ -325,11 +311,8 @@ export default function HomePage() {
     list = filterByStockType(list, 'full_stock');
     list = excludeDealsPageProducts(list);
     return list.filter((p) => {
-      if (!productMatchesCategory(p, category)) return false;
-      if (subcategory) {
-        const { subcategory: prodSub } = parseProductCategory(p.category);
-        if (!prodSub || prodSub.toLowerCase() !== subcategory.toLowerCase()) return false;
-      }
+      if (!shopProductMatchesCategory(p, category)) return false;
+      if (subcategory && !productMatchesSubcategory(p, subcategory)) return false;
       return true;
     });
   }, [products, category, subcategory]);
@@ -665,17 +648,12 @@ export default function HomePage() {
               ))}
             </div>
 
-            <div className="lg:hidden">
-              <SubcategoryAuctionBlock
-                selectedWorld={category || null}
-                selectedSubcategory={subcategory}
-                onSubcategoryTap={setSubcategory}
-                onOpenAuctionRoom={setOpenAuctionRoomId}
-              />
-            </div>
-            <div className="hidden lg:block">
-              <AuctionRailSection onOpenRoom={setOpenAuctionRoomId} />
-            </div>
+            <SubcategoryAuctionBlock
+              selectedWorld={category || null}
+              selectedSubcategory={subcategory}
+              onSubcategoryTap={setSubcategory}
+              onOpenAuctionRoom={setOpenAuctionRoomId}
+            />
 
             {!q && !loading ? (
               <>

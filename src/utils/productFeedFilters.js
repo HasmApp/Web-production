@@ -6,17 +6,16 @@ import {
   isFeaturedDealProduct,
   isPromotionProduct,
 } from './productFlags.js';
-import { productMatchesCategory } from '../constants/shopCategories.js';
-import { parseProductCategory } from './formatProductCategory.js';
+import {
+  productMatchesCategory,
+  productMatchesSubcategory,
+} from '../constants/shopCategories.js';
 
 export function filterByWorldAndSubcategory(products, world, subcategory) {
   const list = Array.isArray(products) ? products : [];
   return list.filter((p) => {
     if (world && !productMatchesCategory(p, world)) return false;
-    if (subcategory && world) {
-      const parsed = parseProductCategory(p.category);
-      return parsed.subcategory === subcategory;
-    }
+    if (subcategory && world && !productMatchesSubcategory(p, subcategory)) return false;
     return true;
   });
 }

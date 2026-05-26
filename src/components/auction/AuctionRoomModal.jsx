@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   X, Package, ChevronLeft, ChevronRight, Users,
-  TrendingUp, Gavel, Clock, ShoppingCart, AlertTriangle,
+  TrendingUp, Gavel, Clock, ShoppingCart, AlertTriangle, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   fetchAuctionById,
   fetchMyAuctionWins,
   fetchAuctionWonOrders,
+  fetchPickupLocationPreview,
   placeBid,
   resolveMediaUrl,
 } from '../../services/api.js';
@@ -16,14 +17,23 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCart } from '../../contexts/CartContext.jsx';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import { checkoutAuctionWinSafe } from '../../utils/auctionCheckout.js';
-import { hasUnpaidAuctionWin, pruneStaleAuctionWonCartItems } from '../../utils/auctionUtils.js';
+import {
+  hasUnpaidAuctionWin,
+  pruneStaleAuctionWonCartItems,
+  auctionRemainingSeconds,
+} from '../../utils/auctionUtils.js';
 import { apiErrorMessage } from '../../utils/apiErrorMessage.js';
 import { formatProductCategory } from '../../utils/formatProductCategory.js';
 import CountdownTimer from './CountdownTimer.jsx';
 import SarAmount from '../common/SarAmount.jsx';
 import LoadingSpinner from '../common/LoadingSpinner.jsx';
 import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
-import { isPickupOnlyProduct } from '../../utils/productFlags.js';
+import { isPickupOnlyAuctionRoom } from '../../utils/productFlags.js';
+import {
+  formatFoodProductDate,
+  getProductExpiryDate,
+} from '../../utils/foodProductDisplay.js';
+import { resolvePickupSupplierId } from '../../utils/pickupLocation.js';
 
 export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const navigate = useNavigate();
@@ -39,6 +49,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const [bidAmount, setBidAmount] = useState('');
   const [bidding, setBidding] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
+  const [pickupCity, setPickupCity] = useState('');
 
   const load = async () => {
     try {
@@ -53,6 +64,27 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   };
 
   useEffect(() => { load(); }, [roomId]);
+
+  useEffect(() => {
+    const product = room?.product;
+    const pickupOnly = isPickupOnlyAuctionRoom(room);
+    const supplierId = resolvePickupSupplierId(product, room);
+    if (!pickupOnly || !supplierId) {
+      setPickupCity('');
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchPickupLocationPreview(supplierId, lang);
+        const c = (data?.city ?? '').toString().trim();
+        if (!cancelled) setPickupCity(c);
+      } catch {
+        if (!cancelled) setPickupCity('');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [room, lang]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -115,6 +147,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
 
   // Derived values
   const product = room?.product;
+  const expiryDate = getProductExpiryDate(product);
   const rawImages = product?.images?.length
     ? product.images
     : [product?.image].filter(Boolean);
@@ -147,8 +180,9 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const bids = room?.bids ?? [];
   const timeRemaining = room?.time_remaining ?? room?.timeRemaining;
   const endTime = room?.end_time || room?.endTime;
-  const pickupOnly = isPickupOnlyProduct(product);
-  const isEnded = Number(timeRemaining ?? 0) <= 0 || room?.is_active === false || room?.isActive === false;
+  const pickupOnly = isPickupOnlyAuctionRoom(room);
+  const secondsLeft = auctionRemainingSeconds(room);
+  const isEnded = secondsLeft <= 0;
   const winnerId = room?.winner_id ?? room?.winnerId;
   const userId = user?.id ?? user?._id;
   const wonFromApi = myWins.some((w) => String(w.id || w._id) === String(roomId));
@@ -203,7 +237,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
             </div>
             {(timeRemaining !== undefined || endTime) && (
               <CountdownTimer
-                timeRemaining={timeRemaining}
+                timeRemaining={secondsLeft}
                 endTime={endTime}
                 className="text-gray-700 dark:text-gray-300"
               />
@@ -240,8 +274,8 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                     <Package className="w-16 h-16 text-gray-300" strokeWidth={1} />
                   )}
                   {pickupOnly ? (
-                    <div className="absolute top-2.5 start-2.5 z-10">
-                      <PickupOnlyBadge size="sm" />
+                    <div className="absolute top-2.5 start-2.5 z-10 max-w-[85%]">
+                      <PickupOnlyBadge size="sm" city={pickupCity} />
                     </div>
                   ) : null}
 
@@ -314,6 +348,22 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                   <h2 className="text-lg font-extrabold text-gray-900 dark:text-white leading-snug">
                     {title}
                   </h2>
+                  {pickupOnly ? (
+                    <div className="mt-2 flex justify-start">
+                      <PickupOnlyBadge size="sm" city={pickupCity} />
+                    </div>
+                  ) : null}
+                  {expiryDate ? (
+                    <p className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <Calendar className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                      <span dir="auto">
+                        <span className="font-semibold text-gray-800 dark:text-gray-200">
+                          {t('productExpiryDate')}:
+                        </span>{' '}
+                        {formatFoodProductDate(expiryDate, lang)}
+                      </span>
+                    </p>
+                  ) : null}
                   <p className="mt-1.5 text-sm font-semibold text-primary">
                     {tf('qtyShort', { n: auctionQuantity })}
                   </p>
@@ -360,7 +410,7 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                       <Clock className="w-3.5 h-3.5" />
                       {t('auctionTimeLeftLabel')}:{' '}
                       <CountdownTimer
-                        timeRemaining={timeRemaining}
+                        timeRemaining={secondsLeft}
                         endTime={endTime}
                         className="font-semibold text-gray-700 dark:text-gray-300 text-xs"
                       />

@@ -62,10 +62,10 @@ function AuctionRailCard({ entry, onOpen }) {
             {isWon ? <Trophy className="h-3 w-3" /> : <Gavel className="h-3 w-3" />}
             {isWon ? t('wonBadge') : t('auctionOpportunityBadge')}
           </span>
-          {!isWon && (timeRemaining !== undefined || endTime) && (
+          {!isWon && auctionRemainingSeconds(room) > 0 && (
             <span className="absolute bottom-3 start-3 end-3 flex items-center justify-center gap-1 rounded-lg border border-emerald-500/50 bg-black/65 px-2 py-1.5 text-xs font-bold text-white">
               <CountdownTimer
-                timeRemaining={timeRemaining}
+                timeRemaining={auctionRemainingSeconds(room)}
                 endTime={endTime}
                 className="!text-xs !text-white"
               />
@@ -112,31 +112,54 @@ export default function AuctionRailSection({ onOpenRoom }) {
   const [allRooms, setAllRooms] = useState([]);
   const [wonRooms, setWonRooms] = useState([]);
   const [loading, setLoading] = useState(true);
-  /** Bumps every second so ended auctions drop off the rail without waiting for poll. */
+  /** Local countdown ticks (mobile seeds time_remaining then decrements). */
+  const [remainByRoomId, setRemainByRoomId] = useState({});
   const [listTick, setListTick] = useState(0);
 
   const roomKey = (room) => String(room.id || room._id || '');
+
+  const seedRemainders = useCallback((rooms) => {
+    const next = {};
+    for (const room of Array.isArray(rooms) ? rooms : []) {
+      const id = roomKey(room);
+      if (!id) continue;
+      const active = room?.is_active ?? room?.isActive;
+      next[id] = active === false ? 0 : auctionRemainingSeconds(room);
+    }
+    setRemainByRoomId(next);
+  }, []);
 
   const load = useCallback(async () => {
     try {
       const data = await fetchAuctions();
       const arr = Array.isArray(data) ? data : [];
-      const enriched = await enrichAuctionRoomsFromDetail(arr, lang);
       let won = [];
       if (isAuthenticated) {
         const wonData = await fetchMyAuctionWins();
-        const winsArr = Array.isArray(wonData) ? wonData : [];
-        won = await enrichAuctionRoomsFromDetail(winsArr, lang);
+        won = Array.isArray(wonData) ? wonData : [];
       }
-      setAllRooms(enriched);
+      setAllRooms(arr);
       setWonRooms(won);
+      seedRemainders([...arr, ...won]);
+      enrichAuctionRoomsFromDetail(arr)
+        .then((enriched) => {
+          setAllRooms(enriched);
+          seedRemainders([...enriched, ...won]);
+        })
+        .catch(() => {});
+      if (won.length > 0) {
+        enrichAuctionRoomsFromDetail(won)
+          .then(setWonRooms)
+          .catch(() => {});
+      }
     } catch {
       setAllRooms([]);
       setWonRooms([]);
+      setRemainByRoomId({});
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, lang]);
+  }, [isAuthenticated, seedRemainders]);
 
   useEffect(() => {
     setLoading(true);
@@ -179,7 +202,16 @@ export default function AuctionRailSection({ onOpenRoom }) {
   }, [load]);
 
   useEffect(() => {
-    const id = setInterval(() => setListTick((n) => n + 1), 1000);
+    const id = setInterval(() => {
+      setRemainByRoomId((prev) => {
+        const out = {};
+        for (const [k, v] of Object.entries(prev)) {
+          out[k] = Math.max(0, v - 1);
+        }
+        return out;
+      });
+      setListTick((n) => n + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -191,7 +223,9 @@ export default function AuctionRailSection({ onOpenRoom }) {
       allRooms.filter((room) => {
         const id = roomKey(room);
         if (wonIds.has(id)) return false;
-        return auctionRemainingSeconds(room) > 0 && isActiveAuctionRoom(room);
+        const left = remainByRoomId[id] ?? auctionRemainingSeconds(room);
+        const activeFlag = room?.is_active ?? room?.isActive;
+        return left > 0 && activeFlag !== false;
       }),
     );
     return [

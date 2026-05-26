@@ -79,7 +79,9 @@ export function isPickupOnlyProduct(p) {
 
 export function isPickupOnlyAuctionRoom(room) {
   if (room == null || typeof room !== 'object') return false;
-  return isPickupOnlyProduct(room) || isPickupOnlyProduct(room.product);
+  if (isPickupOnlyProduct(room)) return true;
+  if (isPickupOnlyProduct(room.product)) return true;
+  return truthyFlag(room.product_pickup_only ?? room.productPickupOnly);
 }
 
 export function isPromotionProduct(p) {

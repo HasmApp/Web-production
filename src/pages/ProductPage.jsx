@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, X,
-  Package, Truck, Shield, Star, Minus, Plus, Warehouse,
+  Package, Truck, Shield, Star, Minus, Plus, Warehouse, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -30,6 +30,10 @@ import {
   stockForSize,
 } from '../utils/sizeQuantities.js';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
+import {
+  formatFoodProductDate,
+  getProductExpiryDate,
+} from '../utils/foodProductDisplay.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
 const getFavorites = () => {
@@ -158,6 +162,7 @@ export default function ProductPage() {
       : (product.current_price ?? product.currentPrice ?? 0);
   const initial = product.initial_price ?? product.initialPrice ?? 0;
   const supplierName = getSupplierDisplayName(product);
+  const expiryDate = getProductExpiryDate(product);
   const pickupOnly = isPickupOnlyProduct(product);
   const sizeChoices = sizeOptions(product);
   const usesSizes = sizeChoices.length > 0;
@@ -322,6 +327,17 @@ export default function ProductPage() {
                 {tf('bySupplier', { name: supplierName })}
               </p>
             )}
+            {expiryDate ? (
+              <p className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <Calendar className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <span dir="auto">
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">
+                    {t('productExpiryDate')}:
+                  </span>{' '}
+                  {formatFoodProductDate(expiryDate, lang)}
+                </span>
+              </p>
+            ) : null}
           </div>
 
           {/* Price + purchase bar — matches mobile ProductPage (quantity stepper, purchase, alert only). */}
