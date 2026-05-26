@@ -16,7 +16,7 @@ export default function OtpPage() {
   const { login } = useAuth();
   const { t, tf, lang } = useLanguage();
   const phone = location.state?.phone || '';
-  const from = location.state?.from || '/';
+  const from = location.state?.from ?? { pathname: '/' };
 
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
@@ -65,7 +65,9 @@ export default function OtpPage() {
       const userData = await getMe();
       login(userData, { access_token: data.access_token, refresh_token: data.refresh_token });
       toast.success(t('otpWelcome'));
-      navigate(from, { replace: true });
+      const targetPath = typeof from === 'string' ? from : (from.pathname || '/');
+      const targetState = typeof from === 'string' ? {} : (from.state || {});
+      navigate(targetPath, { replace: true, state: targetState });
     } catch (err) {
       toast.error(apiErrorMessage(err, lang, t, 'invalidOtp'));
       setDigits(Array(OTP_LENGTH).fill(''));

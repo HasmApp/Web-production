@@ -224,7 +224,7 @@ export default function ProductCard({
             <div className="mt-2">
               <div className="btn-primary w-full py-1.5 text-xs font-bold inline-flex items-center justify-center gap-1">
                 <ArrowRight className="w-3.5 h-3.5 shrink-0 rtl:rotate-180" />
-                {t('viewProduct')}
+                {t('addToCart')}
               </div>
             </div>
           ) : null}

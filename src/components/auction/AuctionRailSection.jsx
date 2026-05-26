@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Gavel, Timer, Trophy } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Gavel, Trophy } from 'lucide-react';
 import {
   fetchAuctions,
   fetchMyAuctionWins,
@@ -8,12 +8,14 @@ import {
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import SarAmount from '../common/SarAmount.jsx';
+import CountdownTimer from './CountdownTimer.jsx';
 import {
   auctionRoomListTitle,
   filterAuctionRooms,
+  filterWonAuctionRooms,
   isActiveAuctionRoom,
   enrichAuctionRoomsFromDetail,
-  formatAuctionTimeRemaining,
+  auctionRemainingSeconds,
 } from '../../utils/auctionUtils.js';
 import { LIVE_PRICE_TEXT_CLASS, PRODUCT_RAIL_CARD_CLASS } from '../../design/shopTokens.js';
 
@@ -27,7 +29,8 @@ function AuctionRailCard({ entry, onOpen }) {
   const image = resolveMediaUrl(room.product_image || room.productImage || room.image || '');
   const price = room.current_price ?? room.currentPrice ?? 0;
   const bidCount = room.bid_count ?? room.bidCount ?? 0;
-  const timeRemaining = room.time_remaining ?? room.timeRemaining ?? 0;
+  const timeRemaining = room.time_remaining ?? room.timeRemaining;
+  const endTime = room.end_time || room.endTime;
 
   return (
     <button
@@ -59,12 +62,13 @@ function AuctionRailCard({ entry, onOpen }) {
             {isWon ? <Trophy className="h-3 w-3" /> : <Gavel className="h-3 w-3" />}
             {isWon ? t('wonBadge') : t('auctionOpportunityBadge')}
           </span>
-          {!isWon && (
-            <span className="absolute bottom-3 start-3 end-3 flex items-center gap-1 rounded-lg border border-emerald-500/50 bg-black/65 px-2 py-1.5 text-xs font-bold text-white">
-              <Timer className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-              <span className="truncate tabular-nums">
-                {formatAuctionTimeRemaining(timeRemaining, t)}
-              </span>
+          {!isWon && (timeRemaining !== undefined || endTime) && (
+            <span className="absolute bottom-3 start-3 end-3 flex items-center justify-center gap-1 rounded-lg border border-emerald-500/50 bg-black/65 px-2 py-1.5 text-xs font-bold text-white">
+              <CountdownTimer
+                timeRemaining={timeRemaining}
+                endTime={endTime}
+                className="!text-xs !text-white"
+              />
             </span>
           )}
         </div>
@@ -102,62 +106,99 @@ function AuctionRailCard({ entry, onOpen }) {
   );
 }
 
-export default function AuctionRailSection({
-  selectedWorld,
-  selectedSubcategory,
-  onOpenRoom,
-}) {
+export default function AuctionRailSection({ onOpenRoom }) {
   const { isAuthenticated } = useAuth();
   const { lang, t } = useLanguage();
   const [allRooms, setAllRooms] = useState([]);
   const [wonRooms, setWonRooms] = useState([]);
   const [loading, setLoading] = useState(true);
+  /** Bumps every second so ended auctions drop off the rail without waiting for poll. */
+  const [listTick, setListTick] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await fetchAuctions();
-        const arr = Array.isArray(data) ? data : [];
-        const enriched = await enrichAuctionRoomsFromDetail(arr, lang);
-        let won = [];
-        if (isAuthenticated) {
-          const wonData = await fetchMyAuctionWins();
-          const winsArr = Array.isArray(wonData) ? wonData : [];
-          won = await enrichAuctionRoomsFromDetail(winsArr, lang);
-        }
-        if (!cancelled) {
-          setAllRooms(enriched);
-          setWonRooms(won);
-        }
-      } catch {
-        if (!cancelled) {
-          setAllRooms([]);
-          setWonRooms([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  const roomKey = (room) => String(room.id || room._id || '');
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchAuctions();
+      const arr = Array.isArray(data) ? data : [];
+      const enriched = await enrichAuctionRoomsFromDetail(arr, lang);
+      let won = [];
+      if (isAuthenticated) {
+        const wonData = await fetchMyAuctionWins();
+        const winsArr = Array.isArray(wonData) ? wonData : [];
+        won = await enrichAuctionRoomsFromDetail(winsArr, lang);
       }
-    })();
-    return () => { cancelled = true; };
+      setAllRooms(enriched);
+      setWonRooms(won);
+    } catch {
+      setAllRooms([]);
+      setWonRooms([]);
+    } finally {
+      setLoading(false);
+    }
   }, [isAuthenticated, lang]);
 
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
+
+  // Refresh auction list when tab wakes (same idea as mobile AppLifecycle resumed).
+  useEffect(() => {
+    let dead = false;
+    let timer = null;
+
+    const refresh = async () => {
+      if (dead) return;
+      await load();
+    };
+
+    const schedule = () => {
+      if (dead) return;
+      const ms = document.hidden ? 25000 : 15000;
+      timer = setTimeout(async () => {
+        await refresh();
+        schedule();
+      }, ms);
+    };
+
+    schedule();
+
+    const onResume = () => { refresh(); };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+
+    return () => {
+      dead = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    const id = setInterval(() => setListTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const visibleEntries = useMemo(() => {
-    const filterOpts = { world: selectedWorld, subcategory: selectedSubcategory };
-    const won = filterAuctionRooms(wonRooms, filterOpts);
+    void listTick;
+    const won = filterWonAuctionRooms(wonRooms);
+    const wonIds = new Set(won.map((r) => String(r.id || r._id)));
     const active = filterAuctionRooms(
-      allRooms.filter(isActiveAuctionRoom),
-      filterOpts,
+      allRooms.filter((room) => {
+        const id = roomKey(room);
+        if (wonIds.has(id)) return false;
+        return auctionRemainingSeconds(room) > 0 && isActiveAuctionRoom(room);
+      }),
     );
-    const activeIds = new Set(active.map((r) => String(r.id || r._id)));
     return [
-      ...won
-        .filter((r) => !activeIds.has(String(r.id || r._id)))
-        .map((room) => ({ room, isWon: true })),
+      ...won.map((room) => ({ room, isWon: true })),
       ...active.map((room) => ({ room, isWon: false })),
     ];
-  }, [allRooms, wonRooms, selectedWorld, selectedSubcategory]);
+  }, [allRooms, wonRooms, listTick]);
 
   if (loading || visibleEntries.length === 0) return null;
 
@@ -177,7 +218,10 @@ export default function AuctionRailSection({
             key={entry.room.id || entry.room._id}
             className={`flex-shrink-0 snap-start ${RAIL_CARD_WIDTH_CLASS}`}
           >
-            <AuctionRailCard entry={entry} onOpen={onOpenRoom} />
+            <AuctionRailCard
+              entry={entry}
+              onOpen={onOpenRoom}
+            />
           </div>
         ))}
       </div>

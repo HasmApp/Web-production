@@ -15,12 +15,14 @@ import {
 } from '../services/api.js';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { savePendingCheckoutGroup } from '../utils/supplierCart.js';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
 import { isPickupOnlyProduct, isBundlePackageProduct } from '../utils/productFlags.js';
+import { maxSelectableQuantity } from '../utils/cartQuantityLimits.js';
 import {
   defaultSizeOption,
   hasSizeQuantities,
@@ -67,31 +69,10 @@ const sanitizeOfferedPriceInput = (raw) => {
   return `${before}.${after}`;
 };
 
-/** Matches mobile `ProductPage._maxSelectableQuantity`. */
-function maxSelectableQuantity(product, selectedSize = null) {
-  const stock = stockForSize(product, selectedSize);
-  if (stock <= 0) return 0;
-  const isFullStock =
-    product.sell_full_quantity_only === true ||
-    product.sellFullQuantityOnly === true ||
-    product.from_ended_auction === true ||
-    product.fromEndedAuction === true;
-  if (isFullStock) return stock;
-  const shippingLimit = Number(
-    product.final_max_quantity ??
-    product.finalMaxQuantity ??
-    product.max_quantity_per_box ??
-    product.maxQuantityPerBox ??
-    1,
-  );
-  if (shippingLimit > 0 && stock > shippingLimit) return shippingLimit;
-  return stock;
-}
-
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addItem } = useCart();
+  const { purchaseForCheckout } = useCart();
   const { isAuthenticated } = useAuth();
   const { lang, t, tf } = useLanguage();
 
@@ -192,7 +173,7 @@ export default function ProductPage() {
     toast(isFav ? t('favRemovedToast') : t('favAddedToast'));
   };
 
-  const handleAddToCart = () => {
+  const handlePurchase = () => {
     const stock = stockForSize(product, selectedSize);
     if (stock < 1) return;
     if (usesSizes && !selectedSize) {
@@ -202,13 +183,23 @@ export default function ProductPage() {
     let qty = selectedQuantity;
     if (maxQty > 0 && qty > maxQty) qty = maxQty;
     if (qty < 1) qty = 1;
-    addItem(
-      { ...product, current_price: current, currentPrice: current },
-      qty,
-      'Full',
-      selectedSize,
-    );
-    navigate('/cart', { replace: true });
+    const patched = { ...product, current_price: current, currentPrice: current };
+    const groupKey = purchaseForCheckout(patched, qty, 'Full', selectedSize);
+    savePendingCheckoutGroup(groupKey);
+    if (!isAuthenticated) {
+      toast.error(t('loginToCheckout'));
+      navigate('/login', {
+        replace: true,
+        state: {
+          from: {
+            pathname: '/checkout',
+            state: { checkoutGroupKey: groupKey },
+          },
+        },
+      });
+      return;
+    }
+    navigate('/checkout', { replace: true, state: { checkoutGroupKey: groupKey } });
   };
 
   const handleSizeChange = (size) => {
@@ -362,22 +353,22 @@ export default function ProductPage() {
                   {sizeChoices.map((size) => {
                     const available = stockForSize(product, size);
                     const active = selectedSize === size;
+                    const disabled = available <= 0;
                     return (
                       <button
                         key={size}
                         type="button"
-                        disabled={available <= 0}
+                        disabled={disabled}
                         onClick={() => handleSizeChange(size)}
-                        className={`inline-flex min-w-[3rem] flex-col items-center rounded-xl border px-3 py-2 text-sm font-bold transition ${
-                          active
-                            ? 'border-primary bg-primary/10 text-primary'
-                            : 'border-gray-200 bg-white text-gray-700 hover:border-primary/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
-                        } ${available <= 0 ? 'cursor-not-allowed opacity-40' : ''}`}
+                        className={`inline-flex h-11 min-w-[2.75rem] items-center justify-center rounded-full px-4 text-sm font-semibold transition ${
+                          disabled
+                            ? 'cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-400 opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-600'
+                            : active
+                              ? 'bg-primary text-white shadow-sm'
+                              : 'border border-gray-200 bg-white text-gray-700 hover:border-primary/50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                        }`}
                       >
-                        <span>{size}</span>
-                        <span className="mt-0.5 text-[10px] font-medium text-gray-500 dark:text-gray-400">
-                          {tf('sizeStockLeft', { n: available })}
-                        </span>
+                        {size}
                       </button>
                     );
                   })}
@@ -423,7 +414,7 @@ export default function ProductPage() {
               <button
                 type="button"
                 disabled={(product.quantity ?? product.stock ?? 0) < 1}
-                onClick={handleAddToCart}
+                onClick={handlePurchase}
                 className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-950"
               >
                 <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />

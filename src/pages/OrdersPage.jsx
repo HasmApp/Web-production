@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import SarAmount from '../components/common/SarAmount.jsx';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
+import { formatOrderDate, getOrderDateParts } from '../utils/formatLocaleDate.js';
 
 const STATUS_META = {
   pending: { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20', tKey: 'statusPending' },
@@ -168,8 +169,6 @@ export default function OrdersPage() {
 
   if (loading) return <PageLoader />;
 
-  const dateLocale = lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-SA';
-
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
       <h1 className="section-title mb-8">{t('myOrders')}</h1>
@@ -184,9 +183,9 @@ export default function OrdersPage() {
       ) : (
         <div className="space-y-4">
           {orders.map((order) => {
-            const date = new Date(order.created_at || order.createdAt).toLocaleDateString(dateLocale, {
-              year: 'numeric', month: 'short', day: 'numeric',
-            });
+            const createdAt = order.created_at || order.createdAt;
+            const date = formatOrderDate(createdAt, lang);
+            const dateParts = lang === 'ar' ? getOrderDateParts(createdAt, 'ar') : null;
             const items = order.items || [];
             const firstItem = items[0];
             const itemTitle =
@@ -214,13 +213,33 @@ export default function OrdersPage() {
                           <PickupOnlyBadge />
                         </div>
                       ) : null}
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {tf('orderNumberShort', { id: oid })} · {date}
+                      <p className={`text-xs text-gray-500 dark:text-gray-400 mt-0.5 ${lang === 'ar' ? 'text-end' : ''}`}>
+                        {lang === 'ar' ? (
+                          <span
+                            dir="ltr"
+                            className="inline-flex flex-row-reverse items-center gap-1 tabular-nums [unicode-bidi:isolate]"
+                          >
+                            <span>طلب</span>
+                            <span className="font-medium text-gray-600 dark:text-gray-300">
+                              #{oid}
+                            </span>
+                          </span>
+                        ) : (
+                          <span
+                            dir="ltr"
+                            className="inline-flex flex-row items-center gap-1 tabular-nums [unicode-bidi:isolate]"
+                          >
+                            <span>Order</span>
+                            <span className="font-medium text-gray-600 dark:text-gray-300">
+                              #{oid}
+                            </span>
+                          </span>
+                        )}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{tf('itemsCountLabel', { n: items.length })}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0 text-end">
                     <StatusBadge status={order.status} />
                     <SarAmount
                       amount={order.total_amount ?? order.totalAmount ?? 0}
@@ -228,6 +247,23 @@ export default function OrdersPage() {
                       className="font-bold text-primary text-sm"
                       numberClassName="font-bold text-primary tabular-nums"
                     />
+                    {dateParts ? (
+                      <time
+                        dir="ltr"
+                        className="inline-flex flex-row items-center gap-1 text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap [unicode-bidi:isolate]"
+                      >
+                        <span>{dateParts.day}</span>
+                        <span>{dateParts.month}</span>
+                        <span>{dateParts.year}</span>
+                      </time>
+                    ) : (
+                      <time
+                        dir="ltr"
+                        className="text-xs text-gray-500 dark:text-gray-400 tabular-nums whitespace-nowrap [unicode-bidi:isolate]"
+                      >
+                        {date}
+                      </time>
+                    )}
                   </div>
                 </div>
 

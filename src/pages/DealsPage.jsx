@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, TrendingDown, LayoutGrid, Shirt, Home as HomeIcon, Leaf, UtensilsCrossed } from 'lucide-react';
+import { Search, TrendingDown } from 'lucide-react';
 import { fetchProducts, fetchAppConfig } from '../services/api.js';
 import ProductCard from '../components/product/ProductCard.jsx';
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
@@ -14,14 +14,6 @@ import { SHOP_CATEGORIES } from '../constants/shopCategories.js';
 import { buildDealsCatalog } from '../utils/productFeedFilters.js';
 import { BOTTOM_NAV_EMPTY_STATE_CLEARANCE, SORT_SELECT_CLASS, PRODUCT_RAIL_CARD_CLASS } from '../design/shopTokens.js';
 
-const CATEGORY_ICONS = {
-  '': LayoutGrid,
-  Fashion: Shirt,
-  HomeLiving: HomeIcon,
-  Kitchen: UtensilsCrossed,
-  LifeStyle: Leaf,
-};
-
 /** Products shown before the certified banner in the deals grid (matches home feed). */
 const DEALS_GRID_CHUNK_SIZE = 4;
 
@@ -31,7 +23,7 @@ export default function DealsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('default');
-  const [category, setCategory] = useState('Fashion');
+  const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState(null);
   const [deliveryIsFree, setDeliveryIsFree] = useState(false);
   const [openAuctionRoomId, setOpenAuctionRoomId] = useState(null);
@@ -93,24 +85,21 @@ export default function DealsPage() {
       <div className="sticky top-16 z-20 border-b border-gray-100 bg-gray-50/95 px-4 py-3 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/95">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t('shopNavDeals')}</h1>
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-2">
-          {SHOP_CATEGORIES.filter((c) => c.id).map(({ id, labelKey }) => {
-            const Icon = CATEGORY_ICONS[id] || LayoutGrid;
-            return (
-              <button
-                type="button"
-                key={id}
-                onClick={() => selectCategory(id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-all ${
-                  category === id
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
-                }`}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                {t(labelKey)}
-              </button>
-            );
-          })}
+          {SHOP_CATEGORIES.map(({ id, labelKey, icon: Icon }) => (
+            <button
+              type="button"
+              key={id || 'all'}
+              onClick={() => selectCategory(id)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-all ${
+                category === id
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              {t(labelKey)}
+            </button>
+          ))}
         </div>
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -140,14 +129,12 @@ export default function DealsPage() {
         className="max-w-6xl mx-auto px-4 py-4"
         style={{ paddingBottom: BOTTOM_NAV_EMPTY_STATE_CLEARANCE + 24 }}
       >
-        {category ? (
-          <SubcategoryAuctionBlock
-            selectedWorld={category}
-            selectedSubcategory={subcategory}
-            onSubcategoryTap={setSubcategory}
-            onOpenAuctionRoom={setOpenAuctionRoomId}
-          />
-        ) : null}
+        <SubcategoryAuctionBlock
+          selectedWorld={category || null}
+          selectedSubcategory={subcategory}
+          onSubcategoryTap={setSubcategory}
+          onOpenAuctionRoom={setOpenAuctionRoomId}
+        />
 
         {!loading && !showEmpty ? (
           <section className="mb-6">

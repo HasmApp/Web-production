@@ -9,6 +9,7 @@ import TabEmptyState from '../components/layout/TabEmptyState.jsx';
 import CartGroupCard from '../components/cart/CartGroupCard.jsx';
 import { BOTTOM_NAV_EMPTY_STATE_CLEARANCE } from '../design/shopTokens.js';
 import toast from 'react-hot-toast';
+import { savePendingCheckoutGroup } from '../utils/supplierCart.js';
 
 export default function CartPage() {
   const {
@@ -19,6 +20,7 @@ export default function CartPage() {
     isolateCheckoutForGroup,
     restoreStashedItems,
     syncLivePricesFromCatalog,
+    pruneDeletedProducts,
   } = useCart();
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -37,15 +39,33 @@ export default function CartPage() {
     }
   }, [catalog, syncLivePricesFromCatalog]);
 
+  useEffect(() => {
+    if (items.length === 0 && !hasStashedItems) return;
+    let cancelled = false;
+    (async () => {
+      await pruneDeletedProducts(catalog);
+      if (cancelled) return;
+    })();
+    return () => { cancelled = true; };
+  }, [items.length, hasStashedItems, catalog, pruneDeletedProducts]);
+
   const groups = supplierGroups(catalog);
 
   const handleCheckoutGroup = (groupKey) => {
+    isolateCheckoutForGroup(groupKey);
+    savePendingCheckoutGroup(groupKey);
     if (!isAuthenticated) {
       toast.error(t('loginToCheckout'));
-      navigate('/login', { state: { from: { pathname: '/checkout' } } });
+      navigate('/login', {
+        state: {
+          from: {
+            pathname: '/checkout',
+            state: { checkoutGroupKey: groupKey },
+          },
+        },
+      });
       return;
     }
-    isolateCheckoutForGroup(groupKey);
     navigate('/checkout', { state: { checkoutGroupKey: groupKey } });
   };
 

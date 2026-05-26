@@ -23,13 +23,23 @@ import SarAmount from '../components/common/SarAmount.jsx';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 import { apiErrorMessage } from '../utils/apiErrorMessage.js';
 import { isPickupOnlyProduct } from '../utils/productFlags.js';
-import { cartGroupKeyForItem } from '../utils/supplierCart.js';
+import {
+  cartGroupKeyForItem,
+  isAuctionWonCartItem,
+  dedupeAuctionWinCartLines,
+  readStoredCartItems,
+  readPendingCheckoutGroup,
+  clearPendingCheckoutGroup,
+  parseAuctionWinFromSearch,
+  readAuctionWinCheckoutRoomId,
+  clearAuctionWinCheckout,
+} from '../utils/supplierCart.js';
 import {
   billableLineTotal,
   checkoutDisplayQuantity,
   toCheckoutOrderItem,
 } from '../utils/bogoPromotion.js';
-import { displayStockTierLabel } from '../utils/stockTierLabel.js';
+import { cleanProductTitleForCart, formatCartCheckoutLineLabel } from '../utils/stockTierLabel.js';
 
 const CHECKOUT_ADDRESS_STORAGE_KEY = 'hasm_web_checkout_address_v1';
 
@@ -414,24 +424,87 @@ function AddressStep({ address, setAddress, onNext, canContinue }) {
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { items, clearCart, restoreStashedItems, isolateCheckoutForGroup } = useCart();
+  const {
+    items,
+    clearCart,
+    restoreStashedItems,
+    restoreAfterCanceledAuctionCheckout,
+    normalizeCartForAuctionWinCheckout,
+    hydrateAuctionWinToCart,
+    isolateCheckoutForGroup,
+  } = useCart();
   const { user } = useAuth();
   const { t, tf, lang } = useLanguage();
   /** Same as mobile PaymentPage.showOfferApprovedMessage — one toast on checkout for auto-approved price request from product page. */
   const offerApprovedToastShownRef = useRef(false);
   const exitToHomeOnBack = Boolean(location.state?.exitToHomeOnBack);
-  const checkoutGroupKey = location.state?.checkoutGroupKey ?? null;
+  const auctionRoomIdFromQuery = parseAuctionWinFromSearch(location.search);
+  const auctionRoomIdFromSession = readAuctionWinCheckoutRoomId();
+  const auctionRoomId = (
+    location.state?.auctionRoomId
+    || auctionRoomIdFromQuery
+    || auctionRoomIdFromSession
+    || ''
+  ).toString().trim() || null;
+  const auctionWinCheckout = Boolean(
+    location.state?.auctionWinCheckout
+    || auctionRoomIdFromQuery
+    || auctionRoomIdFromSession,
+  );
+  const startAtPayment = Boolean(
+    location.state?.startAtPayment ?? auctionWinCheckout,
+  );
+  const auctionWinCheckoutRef = useRef(auctionWinCheckout);
+  auctionWinCheckoutRef.current = auctionWinCheckout;
+  const sawAuctionCheckoutItemsRef = useRef(false);
+  const hydratingAuctionRef = useRef(false);
+  const checkoutGroupKey = auctionWinCheckout
+    ? null
+    : (location.state?.checkoutGroupKey ?? readPendingCheckoutGroup() ?? null);
 
   useLayoutEffect(() => {
-    if (checkoutGroupKey) {
-      isolateCheckoutForGroup(checkoutGroupKey);
+    if (auctionWinCheckout) {
+      clearPendingCheckoutGroup();
+      if (readStoredCartItems().length > 0) {
+        normalizeCartForAuctionWinCheckout();
+      }
+      if (items.length === 0 && auctionRoomId && !hydratingAuctionRef.current) {
+        hydratingAuctionRef.current = true;
+        hydrateAuctionWinToCart(auctionRoomId).finally(() => {
+          hydratingAuctionRef.current = false;
+        });
+      }
+      return;
     }
-  }, [checkoutGroupKey, isolateCheckoutForGroup]);
+    if (!checkoutGroupKey) return;
+    isolateCheckoutForGroup(checkoutGroupKey);
+    clearPendingCheckoutGroup();
+  }, [
+    checkoutGroupKey,
+    isolateCheckoutForGroup,
+    auctionWinCheckout,
+    auctionRoomId,
+    items.length,
+    normalizeCartForAuctionWinCheckout,
+    hydrateAuctionWinToCart,
+  ]);
 
   const checkoutItems = useMemo(() => {
+    if (auctionWinCheckout) {
+      const stored = items.length > 0 ? items : readStoredCartItems();
+      const auctionOnly = dedupeAuctionWinCartLines(stored);
+      if (auctionOnly.length > 0) return auctionOnly;
+      if (stored.length === 1) return stored;
+      if (stored.length > 0) return [stored[stored.length - 1]];
+      return [];
+    }
     if (!checkoutGroupKey) return items;
     return items.filter((i) => cartGroupKeyForItem(i) === checkoutGroupKey);
-  }, [items, checkoutGroupKey]);
+  }, [items, checkoutGroupKey, auctionWinCheckout]);
+
+  useEffect(() => {
+    if (checkoutItems.length > 0) sawAuctionCheckoutItemsRef.current = true;
+  }, [checkoutItems.length]);
 
   const checkoutTotal = useMemo(
     () => checkoutItems.reduce((sum, i) => sum + billableLineTotal(i), 0),
@@ -456,11 +529,24 @@ export default function CheckoutPage() {
     [lang, t]
   );
 
-  const [step, setStep] = useState(0);
+  const paymentStepIndex = allPickupOnly ? 0 : 1;
+  const [step, setStep] = useState(() => (
+    startAtPayment && !allPickupOnly ? 1 : 0
+  ));
+  const appliedStartAtPaymentRef = useRef(false);
 
   useEffect(() => {
+    if (auctionWinCheckout || startAtPayment) return;
     setStep(0);
-  }, [allPickupOnly]);
+  }, [allPickupOnly, auctionWinCheckout, startAtPayment]);
+
+  /** Won auction → payment step immediately (mobile PaymentPage parity). */
+  useLayoutEffect(() => {
+    if (!startAtPayment || appliedStartAtPaymentRef.current) return;
+    if (checkoutItems.length === 0) return;
+    appliedStartAtPaymentRef.current = true;
+    setStep(paymentStepIndex);
+  }, [startAtPayment, checkoutItems.length, paymentStepIndex]);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [pendingOrderId, setPendingOrderId] = useState(null);
@@ -479,6 +565,7 @@ export default function CheckoutPage() {
 
   const goToOrdersAfterSuccessfulOrder = useCallback(() => {
     suppressEmptyCartRedirectRef.current = true;
+    clearAuctionWinCheckout();
     clearCart();
     toast.success(t('orderPlaced'));
     navigate('/orders', { replace: true });
@@ -502,22 +589,47 @@ export default function CheckoutPage() {
     navigate('.', { replace: true, state: {} });
   }, [location.state, navigate, t]);
 
-  // Redirect to cart if empty — must be in useEffect, not during render
+  // Redirect to cart if empty — never bounce won-auction checkout to /cart while hydrating
   useEffect(() => {
-    if (checkoutItems.length === 0) {
-      if (suppressEmptyCartRedirectRef.current) {
-        suppressEmptyCartRedirectRef.current = false;
+    if (checkoutItems.length > 0) return;
+    if (suppressEmptyCartRedirectRef.current) {
+      suppressEmptyCartRedirectRef.current = false;
+      return;
+    }
+    if (auctionWinCheckout) {
+      if (readStoredCartItems().length > 0) {
+        normalizeCartForAuctionWinCheckout();
         return;
       }
-      navigate('/cart');
+      if (auctionRoomId && !hydratingAuctionRef.current) {
+        hydratingAuctionRef.current = true;
+        hydrateAuctionWinToCart(auctionRoomId)
+          .finally(() => { hydratingAuctionRef.current = false; });
+      }
+      return;
     }
-  }, [checkoutItems.length, navigate]);
+    navigate('/cart');
+  }, [
+    checkoutItems.length,
+    auctionWinCheckout,
+    auctionRoomId,
+    navigate,
+    normalizeCartForAuctionWinCheckout,
+    hydrateAuctionWinToCart,
+  ]);
 
   useEffect(() => () => {
     if (!suppressEmptyCartRedirectRef.current) {
-      restoreStashedItems();
+      if (auctionWinCheckoutRef.current) {
+        if (sawAuctionCheckoutItemsRef.current) {
+          clearAuctionWinCheckout();
+          restoreAfterCanceledAuctionCheckout();
+        }
+      } else {
+        restoreStashedItems();
+      }
     }
-  }, [restoreStashedItems]);
+  }, [restoreStashedItems, restoreAfterCanceledAuctionCheckout]);
 
   const pollCharge = useCallback(
     (chargeId, orderId) => {
@@ -658,7 +770,17 @@ export default function CheckoutPage() {
 
   const grandTotal = checkoutTotal + (Number(displayDeliveryFee) || 0);
 
-  if (checkoutItems.length === 0) return null;
+  if (checkoutItems.length === 0) {
+    if (auctionWinCheckout) {
+      return (
+        <div className="max-w-4xl mx-auto px-4 py-16 flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" aria-hidden />
+          <p className="text-sm">{t('loading')}</p>
+        </div>
+      );
+    }
+    return null;
+  }
 
   // Parse user name into first/last
   const defaultCustomer = t('checkoutCustomerDefault');
@@ -822,7 +944,12 @@ export default function CheckoutPage() {
           type="button"
           onClick={() => {
             if (exitToHomeOnBack) {
-              restoreStashedItems();
+              if (auctionWinCheckout) {
+                clearAuctionWinCheckout();
+                restoreAfterCanceledAuctionCheckout();
+              } else {
+                restoreStashedItems();
+              }
               navigate('/', { replace: true });
               return;
             }
@@ -831,8 +958,12 @@ export default function CheckoutPage() {
           }}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary mb-6 transition-colors"
         >
-          <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
-          {allPickupOnly || step === 0 ? t('backToCart') : t('backToAddress')}
+          <ChevronLeft className="w-4 h-4 rtl:rotate-180" aria-hidden />
+          {exitToHomeOnBack
+            ? t('home')
+            : allPickupOnly || step === 0
+              ? t('backToCart')
+              : t('backToAddress')}
         </button>
       )}
 
@@ -1016,10 +1147,11 @@ export default function CheckoutPage() {
                   const { product, quantity, price } = line;
                   const displayQty = checkoutDisplayQuantity(line);
                   const lineTotal = billableLineTotal(line);
-                  const title =
+                  const title = cleanProductTitleForCart(
                     lang === 'ar'
                       ? (product.title_ar || product.titleAr || product.title || '')
-                      : (product.title_en || product.titleEn || product.title || '');
+                      : (product.title_en || product.titleEn || product.title || ''),
+                  );
                   const image = resolveMediaUrl(product.images?.[0] || product.image || '');
                   return (
                     <div key={product._id} className="flex items-center gap-3">
@@ -1099,7 +1231,15 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
           return (
             <div key={product._id} className="flex justify-between gap-2 text-gray-600 dark:text-gray-400">
               <span className="min-w-0 flex-1">
-                <span className="block truncate" dir="auto">{title} — {displayStockTierLabel(stockLabel, t)} ({tf('cartLineUnits', { n: displayQty })})</span>
+                <span className="block truncate" dir="auto">
+                  {formatCartCheckoutLineLabel({
+                    title,
+                    stockLabel,
+                    quantity: displayQty,
+                    t,
+                    tf,
+                  })}
+                </span>
                 {isPickupOnlyProduct(product) ? (
                   <span className="mt-1 inline-block">
                     <PickupOnlyBadge />

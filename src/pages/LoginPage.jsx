@@ -12,7 +12,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, tf, lang } = useLanguage();
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from ?? { pathname: '/' };
 
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);

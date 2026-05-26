@@ -225,7 +225,10 @@ export const createOrderWithTransferProof = async ({
 // ─── Auctions ────────────────────────────────────────────────────────────────
 
 export const fetchAuctions = async () => {
-  const res = await api.get('/auctions/');
+  const res = await api.get('/auctions/', {
+    params: { limit: 100, _ts: Date.now() },
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+  });
   return res.data;
 };
 
@@ -248,6 +251,11 @@ export const fetchMyBids = async () => {
 
 export const fetchMyAuctionWins = async () => {
   const res = await api.get('/auctions/my-wins');
+  return res.data;
+};
+
+export const fetchAuctionWonOrders = async () => {
+  const res = await api.get('/orders/auction-won');
   return res.data;
 };
 

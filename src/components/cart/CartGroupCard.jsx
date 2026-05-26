@@ -6,6 +6,7 @@ import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import SarAmount from '../common/SarAmount.jsx';
 import { billableLineTotal, checkoutDisplayQuantity } from '../../utils/bogoPromotion.js';
 import { productIdKey, suggestMoreForCartGroup } from '../../utils/supplierCart.js';
+import { cleanProductTitleForCart } from '../../utils/stockTierLabel.js';
 import { LIVE_PRICE_TEXT_CLASS } from '../../design/shopTokens.js';
 import ProductCard from '../product/ProductCard.jsx';
 
@@ -21,10 +22,11 @@ function CartLine({ item, onRemove }) {
     return () => clearTimeout(timer);
   }, [lineTotal]);
 
-  const title =
+  const title = cleanProductTitleForCart(
     lang === 'ar'
       ? product.title_ar || product.titleAr || product.title || ''
-      : product.title_en || product.titleEn || product.title || '';
+      : product.title_en || product.titleEn || product.title || '',
+  );
   const image = resolveMediaUrl(product.images?.[0] || product.image || '');
 
   return (

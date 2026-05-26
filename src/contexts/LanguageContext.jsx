@@ -27,7 +27,7 @@ const translations = {
     heroGooglePlayAria: 'Get it on Google Play',
     heroGetApp: 'Get the app',
     livePrice: 'Live price drops happening now',
-    heroTitle: 'Clear excess stock fast\nwith automatic price drops',
+    heroTitle: 'The price drops over time\nSecure it before stock runs out.',
     heroDesc:
       'Shop a dynamic marketplace where every product\'s price falls in real time. Stock is limited and can run out.',
     allProducts: 'All Products',
@@ -282,6 +282,7 @@ const translations = {
     bidMustHigher: 'Bid must be higher than {amount} SAR',
     bidPlaced: 'Bid of {amount} SAR placed!',
     bidFailed: 'Failed to place bid',
+    youHaveWonAuctionMessage: 'You have won an auction. Please complete the purchase before bidding in another auction.',
     tabMyWins: 'My Wins',
     noLiveAuctions: 'No live auctions',
     noLiveAuctionsDesc: 'Check back soon for new auction events.',
@@ -587,7 +588,7 @@ const translations = {
     heroGooglePlayAria: 'احصل عليه من Google Play',
     heroGetApp: 'حمّل التطبيق',
     livePrice: 'انخفاض أسعار مباشرة الآن',
-    heroTitle: 'فضّ المخزون الزايد بسرعة مع نزول سعر آلي',
+    heroTitle: 'السعر ينخفض مع الوقت\nاحجزه قبل نفاد المخزون',
     heroDesc:
       'تسوق في سوق ديناميكي حيث ينخفض سعر كل منتج بشكل مباشر. المخزون محدود وقد ينفد في أي لحظة.',
     allProducts: 'جميع المنتجات',
@@ -842,6 +843,7 @@ const translations = {
     bidMustHigher: 'يجب أن تكون المزايدة أعلى من {amount} ر.س',
     bidPlaced: 'تم تقديم مزايدة {amount} ر.س!',
     bidFailed: 'فشل تقديم المزايدة',
+    youHaveWonAuctionMessage: 'لقد فزت في مزاد. يرجى إتمام الشراء قبل المزايدة في مزاد آخر.',
     tabMyWins: 'مكاسبي',
     noLiveAuctions: 'لا توجد مزادات مباشرة',
     noLiveAuctionsDesc: 'عد لاحقاً لمزادات جديدة.',

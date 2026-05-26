@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   X, Package, ChevronLeft, ChevronRight, Users,
-  TrendingUp, Gavel, Clock, ShoppingCart,
+  TrendingUp, Gavel, Clock, ShoppingCart, AlertTriangle,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   fetchAuctionById,
   fetchMyAuctionWins,
+  fetchAuctionWonOrders,
   placeBid,
   resolveMediaUrl,
 } from '../../services/api.js';
@@ -15,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCart } from '../../contexts/CartContext.jsx';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import { checkoutAuctionWinSafe } from '../../utils/auctionCheckout.js';
+import { hasUnpaidAuctionWin, pruneStaleAuctionWonCartItems } from '../../utils/auctionUtils.js';
 import { apiErrorMessage } from '../../utils/apiErrorMessage.js';
 import { formatProductCategory } from '../../utils/formatProductCategory.js';
 import CountdownTimer from './CountdownTimer.jsx';
@@ -26,11 +28,12 @@ import { isPickupOnlyProduct } from '../../utils/productFlags.js';
 export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  const { addItem } = useCart();
+  const { replaceCartForAuctionWin, items, removeItem } = useCart();
   const { lang, t, tf } = useLanguage();
 
   const [room, setRoom] = useState(null);
   const [myWins, setMyWins] = useState([]);
+  const [pendingAuctionOrders, setPendingAuctionOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [imgIdx, setImgIdx] = useState(0);
   const [bidAmount, setBidAmount] = useState('');
@@ -54,16 +57,21 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   useEffect(() => {
     if (!isAuthenticated) {
       setMyWins([]);
+      setPendingAuctionOrders([]);
       return;
     }
     let cancelled = false;
-    fetchMyAuctionWins()
-      .then((data) => {
-        if (!cancelled) setMyWins(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        if (!cancelled) setMyWins([]);
-      });
+    Promise.all([
+      fetchMyAuctionWins().catch(() => []),
+      fetchAuctionWonOrders().catch(() => []),
+    ]).then(([wins, orders]) => {
+      if (cancelled) return;
+      const winsArr = Array.isArray(wins) ? wins : [];
+      const ordersArr = Array.isArray(orders) ? orders : [];
+      setMyWins(winsArr);
+      setPendingAuctionOrders(ordersArr);
+      pruneStaleAuctionWonCartItems(items, winsArr, ordersArr, removeItem);
+    });
     return () => { cancelled = true; };
   }, [isAuthenticated, roomId]);
 
@@ -76,6 +84,15 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
 
   const handleBid = async () => {
     if (!isAuthenticated) { toast.error(t('loginToBid')); return; }
+    if (hasUnpaidAuctionWin({
+      cartItems: items,
+      myWins,
+      pendingAuctionOrders,
+      currentRoomId: roomId,
+    })) {
+      toast.error(t('youHaveWonAuctionMessage'));
+      return;
+    }
     const amount = parseFloat(bidAmount);
     const minNext = (room?.current_price ?? 0) + 0.01;
     if (!amount || amount < minNext) {
@@ -112,6 +129,15 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const currentPrice = room?.current_price ?? 0;
   const initialPrice = product?.initial_price ?? product?.initialPrice ?? 0;
   const minimumPrice = product?.minimum_price ?? product?.minimumPrice ?? 0;
+  const auctionQuantity = Math.max(
+    1,
+    Number(
+      product?.quantity
+      ?? room?.product_quantity
+      ?? room?.productQuantity
+      ?? 1,
+    ) || 1,
+  );
 
   // Progress: how much of the range has the price dropped
   const priceProgress = initialPrice > minimumPrice
@@ -128,8 +154,15 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
   const wonFromApi = myWins.some((w) => String(w.id || w._id) === String(roomId));
   const isUserWinner = isAuthenticated && (wonFromApi || (winnerId && userId && String(winnerId) === String(userId)));
   const showPurchaseWin = isUserWinner && isEnded;
+  const hasUnpurchasedWin = isAuthenticated && hasUnpaidAuctionWin({
+    cartItems: items,
+    myWins,
+    pendingAuctionOrders,
+    currentRoomId: roomId,
+  });
 
   const handlePurchaseWin = async () => {
+    if (purchasing) return;
     if (!isAuthenticated) {
       toast.error(t('loginToBid'));
       return;
@@ -144,10 +177,10 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
     setPurchasing(true);
     await checkoutAuctionWinSafe({
       room: summary,
-      addItem,
+      replaceCartForAuctionWin,
       navigate: (path, opts) => {
-        onClose();
         navigate(path, opts);
+        onClose();
       },
       t,
       lang,
@@ -281,6 +314,9 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                   <h2 className="text-lg font-extrabold text-gray-900 dark:text-white leading-snug">
                     {title}
                   </h2>
+                  <p className="mt-1.5 text-sm font-semibold text-primary">
+                    {tf('qtyShort', { n: auctionQuantity })}
+                  </p>
                 </div>
 
                 {/* Price block */}
@@ -350,6 +386,12 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                   </button>
                 ) : (
                   <div className="space-y-2">
+                    {hasUnpurchasedWin && (
+                      <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                        <span>{t('youHaveWonAuctionMessage')}</span>
+                      </div>
+                    )}
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                       {t('auctionYourBidLabel')}
                     </label>
@@ -362,12 +404,12 @@ export default function AuctionRoomModal({ roomId, onClose, onBidPlaced }) {
                         className="input flex-1 py-2.5 text-sm"
                         min={currentPrice + 0.01}
                         step="0.01"
-                        disabled={isEnded}
+                        disabled={isEnded || hasUnpurchasedWin}
                       />
                       <button
                         type="button"
                         onClick={handleBid}
-                        disabled={bidding || !bidAmount || isEnded}
+                        disabled={bidding || !bidAmount || isEnded || hasUnpurchasedWin}
                         className="btn-primary flex-shrink-0 px-4 py-2.5 text-sm"
                       >
                         {bidding ? (

@@ -25,6 +25,7 @@ import SarAmount from '../components/common/SarAmount.jsx';
 import PickupOnlyBadge from '../components/common/PickupOnlyBadge.jsx';
 import { excludePackageAuctionRooms } from '../utils/auctionUtils.js';
 import { isPickupOnlyAuctionRoom } from '../utils/productFlags.js';
+import { checkoutAuctionWinSafe } from '../utils/auctionCheckout.js';
 import config from '../config/config.js';
 
 /** Same idea as mobile `AuctionRoomSummary._firstNonEmpty` / `fromJson` title keys. */
@@ -221,7 +222,7 @@ function AuctionCard({ room, onOpen }) {
 
 export default function AuctionPage() {
   const navigate = useNavigate();
-  const { addItem } = useCart();
+  const { replaceCartForAuctionWin } = useCart();
   const { isAuthenticated } = useAuth();
   const { lang, t } = useLanguage();
   const [auctions, setAuctions]   = useState([]);
@@ -238,69 +239,14 @@ export default function AuctionPage() {
     const roomId = room.id || room._id;
     if (!roomId || cartSyncingId) return;
     setCartSyncingId(roomId);
-    try {
-      const detail = await fetchAuctionById(roomId);
-      const product = detail.product;
-      if (!product) {
-        toast.error(t('failedLoadAuction'));
-        return;
-      }
-      const pid = detail.product_id || product.id || product._id;
-      const qtyRaw = product.quantity ?? room.product_quantity ?? 1;
-      const qty = Math.max(1, parseInt(String(qtyRaw), 10) || 1);
-      const winTotal = Number(detail.current_price ?? room.current_price ?? 0);
-      if (!winTotal || winTotal <= 0) {
-        toast.error(t('failedLoadAuction'));
-        return;
-      }
-      const payload = {
-        product_id: String(pid),
-        product_name: product.title || room.product_title || 'Auction',
-        winning_bid: winTotal,
-        image_url: product.image || room.product_image || '',
-        auction_room_id: String(roomId),
-        original_price: product.initial_price != null ? Number(product.initial_price) : undefined,
-        quantity: qty,
-        sell_full_quantity_only: Boolean(product.sell_full_quantity_only),
-      };
-      const res = await addAuctionWonToCart(payload);
-      const orderId = res.order_id || res.orderId;
-      let expiresAt = '';
-      if (orderId) {
-        try {
-          const order = await fetchOrderById(orderId);
-          expiresAt = order?.expires_at || order?.expiresAt || '';
-        } catch {
-          /* optional */
-        }
-      }
-      if (!expiresAt) {
-        expiresAt = new Date(Date.now() + 20 * 60 * 1000).toISOString();
-      }
-      const unitPrice = winTotal / qty;
-      const p = normalizeProduct({
-        ...product,
-        current_price: unitPrice,
-        currentPrice: unitPrice,
-      });
-      addItem(
-        {
-          ...p,
-          is_auction_won: true,
-          auction_won: true,
-          auction_expires_at: expiresAt,
-          auction_room_id: String(roomId),
-        },
-        qty,
-        'Full'
-      );
-      navigate('/cart');
-      toast.success(t('addedToCartToast'));
-    } catch (err) {
-      toast.error(apiErrorMessage(err, lang, t, 'bidFailed'));
-    } finally {
-      setCartSyncingId(null);
-    }
+    await checkoutAuctionWinSafe({
+      room,
+      replaceCartForAuctionWin,
+      navigate,
+      t,
+      lang,
+    });
+    setCartSyncingId(null);
   };
 
   const load = async ({ silent = false } = {}) => {

@@ -1,6 +1,89 @@
 import { billableLineTotal } from './bogoPromotion.js';
 import { isPickupOnlyProduct, isFeaturedDealProduct } from './productFlags.js';
 
+const CART_STORAGE_KEY = 'hasm_cart';
+
+/** sessionStorage: won-auction checkout in progress (survives lost React Router location.state). */
+const AUCTION_WIN_CHECKOUT_KEY = 'hasm_auction_win_checkout';
+
+export function persistAuctionWinCheckout(roomId) {
+  const id = String(roomId || '').trim();
+  if (!id) return;
+  try {
+    sessionStorage.setItem(AUCTION_WIN_CHECKOUT_KEY, id);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function readAuctionWinCheckoutRoomId() {
+  try {
+    return String(sessionStorage.getItem(AUCTION_WIN_CHECKOUT_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+export function clearAuctionWinCheckout() {
+  try {
+    sessionStorage.removeItem(AUCTION_WIN_CHECKOUT_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function auctionWinCheckoutPath(roomId) {
+  const id = String(roomId || '').trim();
+  return id ? `/checkout?auctionWin=${encodeURIComponent(id)}` : '/checkout';
+}
+
+export function parseAuctionWinFromSearch(search) {
+  try {
+    const raw = new URLSearchParams(search || '').get('auctionWin');
+    return raw ? String(raw).trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Read cart lines from localStorage (used when checkout mounts before React state flushes). */
+export function readStoredCartItems() {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** sessionStorage: supplier group user chose to checkout before login redirect */
+export const PENDING_CHECKOUT_GROUP_KEY = 'hasm_pending_checkout_group';
+
+export function savePendingCheckoutGroup(groupKey) {
+  if (!groupKey) return;
+  try {
+    sessionStorage.setItem(PENDING_CHECKOUT_GROUP_KEY, groupKey);
+  } catch {
+    /* private mode */
+  }
+}
+
+export function readPendingCheckoutGroup() {
+  try {
+    return sessionStorage.getItem(PENDING_CHECKOUT_GROUP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingCheckoutGroup() {
+  try {
+    sessionStorage.removeItem(PENDING_CHECKOUT_GROUP_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
 export function productIdKey(p) {
   if (!p) return '';
   return String(p._id ?? p.id ?? '').trim();
@@ -23,10 +106,41 @@ export function supplierDisplayName(product) {
   return product?.title_en || product?.titleEn || product?.title || '';
 }
 
+/** Stable supplier+fulfillment key — always from product row, not stale line.ownerId. */
 export function cartGroupKeyForItem(item) {
-  const owner = item.ownerId ?? supplierKeyForProduct(item.product);
-  const pickup = item.pickupOnly ? 'pickup' : 'delivery';
+  const owner = supplierKeyForProduct(item.product);
+  const pickup = (item.pickupOnly ?? isPickupOnlyProduct(item.product))
+    ? 'pickup'
+    : 'delivery';
   return `${owner}|${pickup}`;
+}
+
+export const CART_GROUP_ORDER_KEY = 'hasm_cart_group_order';
+
+export function deriveGroupOrderFromItems(items) {
+  const order = [];
+  for (const item of items || []) {
+    const key = cartGroupKeyForItem(item);
+    if (!order.includes(key)) order.push(key);
+  }
+  return order;
+}
+
+export function bumpGroupOrder(order, groupKey) {
+  const key = String(groupKey || '').trim();
+  if (!key) return Array.isArray(order) ? [...order] : [];
+  const prev = Array.isArray(order) ? order : [];
+  return [key, ...prev.filter((k) => k !== key)];
+}
+
+export function pruneGroupOrder(order, items) {
+  const active = deriveGroupOrderFromItems(items);
+  const activeSet = new Set(active);
+  const pruned = (Array.isArray(order) ? order : []).filter((k) => activeSet.has(k));
+  for (const key of active) {
+    if (!pruned.includes(key)) pruned.push(key);
+  }
+  return pruned;
 }
 
 export function ownerIdFromGroupKey(groupKey) {
@@ -35,32 +149,32 @@ export function ownerIdFromGroupKey(groupKey) {
   return groupKey.slice(0, sep);
 }
 
-export function groupCartItems(items) {
+export function groupCartItems(items, preferredGroupOrder = []) {
   if (!items?.length) return [];
   const map = new Map();
+  const keysInCart = deriveGroupOrderFromItems(items);
   for (const item of items) {
     const key = cartGroupKeyForItem(item);
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(item);
   }
-  const groups = [];
-  for (const [groupKey, lines] of map.entries()) {
+  const mergedOrder = [
+    ...(Array.isArray(preferredGroupOrder) ? preferredGroupOrder : []).filter((k) => map.has(k)),
+    ...keysInCart.filter((k) => !(preferredGroupOrder || []).includes(k)),
+  ];
+  return mergedOrder.map((groupKey) => {
+    const lines = map.get(groupKey);
     const first = lines[0];
     const subtotal = lines.reduce((s, i) => s + billableLineTotal(i), 0);
-    groups.push({
+    return {
       groupKey,
       ownerId: ownerIdFromGroupKey(groupKey),
       pickupOnly: groupKey.endsWith('|pickup'),
       displayName: supplierDisplayName(first.product),
       items: lines,
       subtotal,
-    });
-  }
-  groups.sort((a, b) => {
-    if (a.pickupOnly !== b.pickupOnly) return a.pickupOnly ? -1 : 1;
-    return a.displayName.localeCompare(b.displayName);
+    };
   });
-  return groups;
 }
 
 export function suggestMoreForCartGroup(group, catalog, limit = 8) {
@@ -78,14 +192,32 @@ export function suggestMoreForCartGroup(group, catalog, limit = 8) {
 
 export function isAuctionWonCartItem(item) {
   const p = item?.product;
+  if (item?.isAuctionWon || item?.is_auction_won) return true;
   if (!p) return false;
   return Boolean(
     p.is_auction_won ||
     p.auction_won ||
     p.isAuctionWon ||
     p.auction_expires_at ||
-    p.auctionExpiresAt,
+    p.auctionExpiresAt ||
+    p.auction_room_id ||
+    p.auctionRoomId,
   );
+}
+
+/** One checkout line per auction room (latest wins if duplicates slipped in). */
+export function dedupeAuctionWinCartLines(lines) {
+  const list = Array.isArray(lines) ? lines : [];
+  const byKey = new Map();
+  for (const line of list) {
+    if (!isAuctionWonCartItem(line)) continue;
+    const p = line.product;
+    const key = String(
+      p?.auction_room_id ?? p?.auctionRoomId ?? line.productId ?? '',
+    ).trim() || productIdKey(p);
+    byKey.set(key, line);
+  }
+  return [...byKey.values()];
 }
 
 /** Unit price for a catalog row (matches `cartItemFromProduct`). */

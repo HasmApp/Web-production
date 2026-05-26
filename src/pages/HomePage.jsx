@@ -469,7 +469,7 @@ export default function HomePage() {
                   href="#products"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-6 py-3.5 text-sm font-semibold text-primary shadow-lg shadow-black/10 transition hover:bg-primary-50 hover:shadow-xl sm:px-7 sm:text-base"
                 >
-                  <TrendingDown className="h-5 w-5 shrink-0" />
+                  <HomeIcon className="h-5 w-5 shrink-0" />
                   {t('shopNow')}
                 </a>
                 <Link
@@ -665,31 +665,17 @@ export default function HomePage() {
               ))}
             </div>
 
-            {category ? (
-              <>
-                <div className="lg:hidden">
-                  <SubcategoryAuctionBlock
-                    selectedWorld={category}
-                    selectedSubcategory={subcategory}
-                    onSubcategoryTap={setSubcategory}
-                    onOpenAuctionRoom={setOpenAuctionRoomId}
-                  />
-                </div>
-                <div className="hidden lg:block">
-                  <AuctionRailSection
-                    selectedWorld={category}
-                    selectedSubcategory={subcategory}
-                    onOpenRoom={setOpenAuctionRoomId}
-                  />
-                </div>
-              </>
-            ) : (
-              <AuctionRailSection
-                selectedWorld={null}
-                selectedSubcategory={null}
-                onOpenRoom={setOpenAuctionRoomId}
+            <div className="lg:hidden">
+              <SubcategoryAuctionBlock
+                selectedWorld={category || null}
+                selectedSubcategory={subcategory}
+                onSubcategoryTap={setSubcategory}
+                onOpenAuctionRoom={setOpenAuctionRoomId}
               />
-            )}
+            </div>
+            <div className="hidden lg:block">
+              <AuctionRailSection onOpenRoom={setOpenAuctionRoomId} />
+            </div>
 
             {!q && !loading ? (
               <>

@@ -1,4 +1,5 @@
 import { isPromotionProduct } from './productFlags.js';
+import { isAuctionWonCartItem } from './supplierCart.js';
 
 /** Units shown at checkout / sent to order API (2× for 1+1). */
 export function checkoutDisplayQuantity(cartLine) {
@@ -18,22 +19,34 @@ export function toCheckoutOrderItem(cartLine) {
   const promo = isPromotionProduct(cartLine?.product);
   const cartQty = Number(cartLine?.quantity ?? 1);
   const price = Number(cartLine?.price ?? 0);
-  return {
+  const row = {
     product_id: cartLine.productId ?? cartLine.product?._id ?? cartLine.product?.id,
     quantity: promo ? cartQty * 2 : cartQty,
     price: promo ? price / 2 : price,
     ...(cartLine.size ? { size: cartLine.size } : {}),
   };
+  if (isAuctionWonCartItem(cartLine)) {
+    const p = cartLine.product;
+    row.is_auction_won = true;
+    row.auction_expires_at = p?.auction_expires_at ?? p?.auctionExpiresAt ?? null;
+  }
+  return row;
 }
 
 /** Validate-cart payload (full unit price, fulfillment quantity). */
 export function toValidateCartItem(cartLine) {
   const promo = isPromotionProduct(cartLine?.product);
   const cartQty = Number(cartLine?.quantity ?? 1);
-  return {
+  const row = {
     product_id: cartLine.productId ?? cartLine.product?._id ?? cartLine.product?.id,
     quantity: promo ? cartQty * 2 : cartQty,
     price: Number(cartLine?.price ?? 0),
     ...(cartLine.size ? { size: cartLine.size } : {}),
   };
+  if (isAuctionWonCartItem(cartLine)) {
+    const p = cartLine.product;
+    row.is_auction_won = true;
+    row.auction_expires_at = p?.auction_expires_at ?? p?.auctionExpiresAt ?? null;
+  }
+  return row;
 }
