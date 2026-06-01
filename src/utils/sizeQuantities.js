@@ -1,15 +1,42 @@
 /** Per-size stock helpers (API: size_quantities JSON object). */
 
-export function getSizeQuantities(product) {
-  const raw = product?.size_quantities ?? product?.sizeQuantities;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+function parseSizeQuantitiesRaw(raw) {
+  if (raw == null) return null;
+  let map = raw;
+  if (typeof map === 'string') {
+    try {
+      map = JSON.parse(map);
+    } catch {
+      return null;
+    }
+  }
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return null;
   const out = {};
-  for (const [key, value] of Object.entries(raw)) {
+  for (const [key, value] of Object.entries(map)) {
     const label = String(key || '').trim();
     const qty = Number(value);
     if (label && Number.isFinite(qty) && qty >= 0) out[label] = qty;
   }
   return Object.keys(out).length ? out : null;
+}
+
+export function getSizeQuantities(product) {
+  const raw = product?.size_quantities ?? product?.sizeQuantities;
+  return parseSizeQuantitiesRaw(raw);
+}
+
+/** Match cart/API size label to a key in size_quantities (case-insensitive). */
+export function resolveSizeInProduct(product, size) {
+  const map = getSizeQuantities(product);
+  if (!map) return null;
+  const label = String(size || '').trim();
+  if (!label) return null;
+  if (label in map) return label;
+  const lower = label.toLowerCase();
+  for (const key of Object.keys(map)) {
+    if (key.trim().toLowerCase() === lower) return key;
+  }
+  return null;
 }
 
 export function getVariantOptionType(product) {
@@ -33,8 +60,8 @@ export function sizeOptions(product) {
 export function stockForSize(product, size) {
   const map = getSizeQuantities(product);
   if (map) {
-    const label = String(size || '').trim();
-    return Number(map[label] ?? 0);
+    const resolved = resolveSizeInProduct(product, size);
+    return resolved ? Number(map[resolved] ?? 0) : 0;
   }
   return Number(product?.quantity ?? product?.stock ?? 0);
 }

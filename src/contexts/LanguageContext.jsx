@@ -539,6 +539,8 @@ const translations = {
     loginSampleRequest: 'Log in to request a sample',
     // Checkout toasts
     completeTapTab: 'Complete your payment in the Tap tab, then return here.',
+    productNotShippable:
+      '«{name}» cannot be shipped — unit dimensions or weight exceed carrier limits (max 50×50×50 cm, max 15 kg per shipment). Edit the product dimensions/weight in the dashboard, or mark it warehouse pickup / full stock if that applies.',
     paymentFailedGeneric: 'Payment failed. Please try again.',
     paymentNotCompleted: 'Payment was not completed. Please try again.',
     paymentTimeout: 'Payment timed out. Check your orders for confirmation.',
@@ -1105,6 +1107,8 @@ const translations = {
     loginSampleRequest: 'سجّل الدخول لطلب عينة',
     // Checkout toasts
     completeTapTab: 'أكمل الدفع في تبويب Tap ثم عد هنا.',
+    productNotShippable:
+      'لا يمكن شحن «{name}» — أبعاد أو وزن المنتج يتجاوز حدود الشحن (حد أقصى 50×50×50 سم للوحدة، و15 كغ للشحنة). عدّل الطول/العرض/الارتفاع/الوزن من لوحة التحكم، أو فعّل «استلام من المستودع» أو «بيع الكمية كاملة» إن كان ذلك مناسباً.',
     paymentFailedGeneric: 'فشل الدفع. حاول مرة أخرى.',
     paymentNotCompleted: 'لم يكتمل الدفع. حاول مرة أخرى.',
     paymentTimeout: 'انتهت مهلة الدفع. راجع طلباتك للتأكيد.',

@@ -217,7 +217,18 @@ export const createOrderWithTransferProof = async ({
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    let detail = text || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.detail) {
+        detail = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+      }
+    } catch {
+      /* plain text body */
+    }
+    const err = new Error(detail);
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 };

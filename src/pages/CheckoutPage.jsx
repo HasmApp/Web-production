@@ -38,6 +38,7 @@ import {
   billableLineTotal,
   checkoutDisplayQuantity,
   toCheckoutOrderItem,
+  validateCheckoutLinesForPayment,
 } from '../utils/bogoPromotion.js';
 import { cleanProductTitleForCart, formatCartCheckoutLineLabel } from '../utils/stockTierLabel.js';
 
@@ -800,7 +801,17 @@ export default function CheckoutPage() {
   };
 
   // ── Card: use Tap's hosted page (src_all) — no JS SDK needed ─────────────────
+  const runCheckoutVariantGuard = () => {
+    const variantErrors = validateCheckoutLinesForPayment(checkoutItems, t);
+    if (variantErrors.length) {
+      toast.error(variantErrors[0]);
+      return false;
+    }
+    return true;
+  };
+
   const handleCardPay = async () => {
+    if (!runCheckoutVariantGuard()) return;
     setLoading(true);
     try {
       // Create order ref + get order ID
@@ -851,7 +862,7 @@ export default function CheckoutPage() {
         );
       }
     } catch (err) {
-      toast.error(apiErrorMessage(err, lang, t, 'paymentFailedGeneric'));
+      toast.error(apiErrorMessage(err, lang, t, 'paymentFailedGeneric', tf));
     } finally {
       setLoading(false);
     }
@@ -859,6 +870,7 @@ export default function CheckoutPage() {
 
   // ── Tamara ────────────────────────────────────────────────────────────────────
   const handleTamara = async () => {
+    if (!runCheckoutVariantGuard()) return;
     setLoading(true);
     try {
       const res = await createTamaraOrder({
@@ -904,7 +916,7 @@ export default function CheckoutPage() {
 
       toast(t('completeTamaraTab'), { duration: 10000 });
     } catch (err) {
-      toast.error(apiErrorMessage(err, lang, t, 'tamaraFailed'));
+      toast.error(apiErrorMessage(err, lang, t, 'tamaraFailed', tf));
     } finally {
       setLoading(false);
     }
@@ -913,6 +925,7 @@ export default function CheckoutPage() {
   // ── Bank Transfer ─────────────────────────────────────────────────────────────
   const handleBankTransfer = async () => {
     if (!transferProof) { toast.error(t('bankTransferUploadRequired')); return; }
+    if (!runCheckoutVariantGuard()) return;
     setLoading(true);
     try {
       await createOrderWithTransferProof({

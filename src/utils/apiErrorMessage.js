@@ -1,12 +1,27 @@
 /**
- * When UI is Arabic, avoid showing raw English `detail` from the API.
- * English UI still prefers server message when present.
+ * Prefer the API `detail` string so checkout errors (400) show the real reason.
  */
-export function apiErrorMessage(err, lang, t, fallbackKey) {
-  if (lang === 'ar') return t(fallbackKey);
+const NOT_SHIPPABLE_RE =
+  /^'([^']+)'\s+cannot be shipped due to dimensions or weight exceeding shipping limits$/i;
+
+export function apiErrorMessage(err, lang, t, fallbackKey, tf) {
   const d = err?.response?.data?.detail;
-  if (typeof d === 'string' && d.trim()) return d;
-  if (Array.isArray(d) && d[0]?.msg) return String(d[0].msg);
+  let detail = null;
+  if (typeof d === 'string' && d.trim()) {
+    detail = d.trim();
+  } else if (Array.isArray(d) && d[0]?.msg) {
+    detail = String(d[0].msg);
+  } else if (typeof err?.message === 'string' && err.message.trim() && !err.message.startsWith('HTTP ')) {
+    detail = err.message.trim();
+  }
+  if (detail) {
+    console.error('[API]', detail);
+    const ship = detail.match(NOT_SHIPPABLE_RE);
+    if (ship && typeof tf === 'function') {
+      return tf('productNotShippable', { name: ship[1] });
+    }
+    return detail;
+  }
   return t(fallbackKey);
 }
 
