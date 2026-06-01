@@ -12,6 +12,15 @@ export function getSizeQuantities(product) {
   return Object.keys(out).length ? out : null;
 }
 
+export function getVariantOptionType(product) {
+  const raw = product?.variant_option_type ?? product?.variantOptionType;
+  return String(raw || '').trim().toLowerCase() === 'color' ? 'color' : 'size';
+}
+
+export function isColorVariant(product) {
+  return hasSizeQuantities(product) && getVariantOptionType(product) === 'color';
+}
+
 export function hasSizeQuantities(product) {
   return getSizeQuantities(product) != null;
 }

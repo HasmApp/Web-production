@@ -28,6 +28,7 @@ import { maxSelectableQuantity } from '../utils/cartQuantityLimits.js';
 import {
   defaultSizeOption,
   hasSizeQuantities,
+  isColorVariant,
   sizeOptions,
   stockForSize,
 } from '../utils/sizeQuantities.js';
@@ -213,7 +214,8 @@ export default function ProductPage() {
   const expiryDate = getProductExpiryDate(product);
   const pickupOnly = isPickupOnlyProduct(product);
   const sizeChoices = sizeOptions(product);
-  const usesSizes = sizeChoices.length > 0;
+  const usesVariants = sizeChoices.length > 0;
+  const usesColors = usesVariants && isColorVariant(product);
   const maxQty = maxSelectableQuantity(product, selectedSize);
   const stepperMax = maxQty > 0 ? maxQty : 1;
   const totalLinePrice = current * selectedQuantity;
@@ -229,8 +231,8 @@ export default function ProductPage() {
   const handlePurchase = () => {
     const stock = stockForSize(product, selectedSize);
     if (stock < 1) return;
-    if (usesSizes && !selectedSize) {
-      toast.error(t('selectSizeRequired'));
+    if (usesVariants && !selectedSize) {
+      toast.error(t(usesColors ? 'selectColorRequired' : 'selectSizeRequired'));
       return;
     }
     let qty = selectedQuantity;
@@ -410,9 +412,9 @@ export default function ProductPage() {
               </div>
             ) : null}
 
-            {usesSizes ? (
+            {usesVariants ? (
               <div className="space-y-2">
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{t('selectSize')}</p>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{t(usesColors ? 'selectColor' : 'selectSize')}</p>
                 <div className="flex flex-wrap gap-2">
                   {sizeChoices.map((size) => {
                     const available = stockForSize(product, size);

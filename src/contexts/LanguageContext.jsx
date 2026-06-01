@@ -254,6 +254,8 @@ const translations = {
     cartLineUnits: '{n} units',
     selectSize: 'Select size',
     selectSizeRequired: 'Please select a size',
+    selectColor: 'Choose your color',
+    selectColorRequired: 'Please select a color',
     sizeStockLeft: '{n} left',
     // Favorites
     favoritesTitle: 'Favorites',
@@ -820,6 +822,8 @@ const translations = {
     cartLineUnits: '{n} وحدة',
     selectSize: 'اختر المقاس',
     selectSizeRequired: 'يرجى اختيار المقاس',
+    selectColor: 'اختر اللون',
+    selectColorRequired: 'يرجى اختيار اللون',
     sizeStockLeft: 'متبقي {n}',
     // Favorites
     favoritesTitle: 'المفضلة',
