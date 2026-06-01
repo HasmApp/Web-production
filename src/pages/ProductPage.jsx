@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, X,
@@ -7,12 +7,14 @@ import {
 import toast from 'react-hot-toast';
 import {
   fetchProductById,
+  fetchProducts,
   createAlert,
   updateAlert,
   fetchAlerts,
   deleteAlert,
   resolveMediaUrl,
 } from '../services/api.js';
+import ProductRailSection from '../components/shop/ProductRailSection.jsx';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { savePendingCheckoutGroup } from '../utils/supplierCart.js';
@@ -54,6 +56,28 @@ const getSupplierDisplayName = (p) => {
   return '';
 };
 
+const productIdKey = (p) => String(p?._id ?? p?.id ?? '').trim();
+
+const ownerKeyOf = (p) =>
+  String(p?.owner_id ?? p?.ownerId ?? p?.owner?.id ?? '').trim();
+
+/**
+ * All other in-stock products from the same supplier (excluding the current one).
+ * No cap: web has no separate "Visit store" page, so this rail surfaces the
+ * supplier's entire approved catalog.
+ */
+const moreFromSupplier = (anchor, catalog) => {
+  const ownerKey = ownerKeyOf(anchor);
+  if (!ownerKey || !Array.isArray(catalog)) return [];
+  const anchorId = productIdKey(anchor);
+  return catalog.filter(
+    (p) =>
+      ownerKeyOf(p) === ownerKey &&
+      productIdKey(p) !== anchorId &&
+      Number(p.quantity ?? p.stock ?? 0) > 0,
+  );
+};
+
 /** At most two fraction digits, matching DB NUMERIC(10,2) / cent precision. */
 const sanitizeOfferedPriceInput = (raw) => {
   const text = String(raw ?? '').replace(/[^\d.]/g, '');
@@ -91,6 +115,8 @@ export default function ProductPage() {
   const [showAlertModal, setShowAlertModal] = useState(false);
   /** Unit price frozen when you open this page (from home/card). Same idea as mobile `ProductPage` `_currentPrice`. */
   const [lockedPrice, setLockedPrice] = useState(null);
+  /** Full catalog, used to build the "More from this supplier" rail. */
+  const [catalog, setCatalog] = useState([]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -142,6 +168,28 @@ export default function ProductPage() {
     };
     load();
   }, [id, isAuthenticated, navigate]);
+
+  // Load the catalog once to power the "More from this supplier" rail.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchProducts();
+        const list = Array.isArray(data) ? data : data?.items || [];
+        if (!cancelled) setCatalog(list);
+      } catch {
+        if (!cancelled) setCatalog([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const supplierProducts = useMemo(
+    () => (product ? moreFromSupplier(product, catalog) : []),
+    [product, catalog],
+  );
 
   if (loading) return <PageLoader />;
   if (!product) return null;
@@ -526,6 +574,17 @@ export default function ProductPage() {
               <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm whitespace-pre-line">{desc}</p>
             </div>
           </details>
+        </div>
+      )}
+
+      {/* More from this supplier — mirrors mobile SupplierMoreProductsRail */}
+      {supplierProducts.length > 0 && (
+        <div className="mt-12">
+          <ProductRailSection
+            title={t('supplierMoreFromTitle')}
+            subtitle={t('supplierOtherProducts')}
+            products={supplierProducts}
+          />
         </div>
       )}
 

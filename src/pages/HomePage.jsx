@@ -26,9 +26,7 @@ import { productCountLabel } from '../utils/productCountLabel.js';
 import { isBundlePackageProduct } from '../utils/productFlags.js';
 import {
   excludePackageProducts,
-  filterByStockType,
   excludeDealsPageProducts,
-  filterHomeFeedTab,
   filterInStock,
   sortProductsByPriceDecay,
   sortByPrice,
@@ -257,7 +255,9 @@ export default function HomePage() {
   const filtered = useMemo(() => {
     let list = filterInStock(products);
     list = excludePackageProducts(list);
-    list = filterByStockType(list, 'full_stock');
+    // Stock-type ("by pieces") toggle is retired; the home feed now shows both
+    // full-stock and by-pieces products (standard dynamic products are created
+    // as by-pieces, so filtering to full_stock hid most of them).
     list = excludeDealsPageProducts(list);
     list = list.filter((p) => {
       if (q) {
@@ -271,7 +271,9 @@ export default function HomePage() {
       if (subcategory && !productMatchesSubcategory(p, subcategory)) return false;
       return true;
     });
-    list = filterHomeFeedTab(list, 'new');
+    // Show the full catalog (admin-flagged deals already excluded above). Prices
+    // cycle (decay to minimum, then reset to initial via the scheduler), so we no
+    // longer drop products that are momentarily at their price floor.
     if (sort === 'low' || sort === 'high') {
       return sortByPrice(list, sort);
     }
@@ -308,7 +310,6 @@ export default function HomePage() {
   const catalogForCarousels = useMemo(() => {
     let list = filterInStock(products);
     list = excludePackageProducts(list);
-    list = filterByStockType(list, 'full_stock');
     list = excludeDealsPageProducts(list);
     return list.filter((p) => {
       if (!shopProductMatchesCategory(p, category)) return false;

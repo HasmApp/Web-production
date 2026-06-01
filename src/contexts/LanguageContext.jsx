@@ -318,6 +318,8 @@ const translations = {
     // Product page extras
     backToProducts: 'Back to products',
     bySupplier: 'by {name}',
+    supplierMoreFromTitle: 'More from this supplier',
+    supplierOtherProducts: 'Other products from this seller',
     percentOff: '-{n}% off',
     badgeDealSticker: '-{n}%',
     wasPriceLine: 'Was {amount} SAR',
@@ -882,6 +884,8 @@ const translations = {
     // Product page
     backToProducts: 'العودة للمنتجات',
     bySupplier: 'من {name}',
+    supplierMoreFromTitle: 'المزيد من هذا المورد',
+    supplierOtherProducts: 'منتجات أخرى من نفس البائع',
     percentOff: '-{n}٪ خصم',
     badgeDealSticker: 'خصم {n}٪',
     wasPriceLine: 'كان {amount} ر.س',
