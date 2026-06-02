@@ -524,7 +524,6 @@ export default function CheckoutPage() {
   const PAYMENT_METHODS = useMemo(
     () => [
       { id: 'card',          label: t('paymentCardTitle'),     icon: CreditCard, desc: t('visaMada') },
-      { id: 'bank_transfer', label: t('bankTransferTitle'),    icon: Landmark,   desc: t('bankTransferDesc') },
       { id: 'tamara',        label: t('paymentTamaraTitle'),   icon: null,       logo: lang === 'ar' ? tamaraArUrl : tamaraEnUrl, desc: t('tamaraSplit') },
     ],
     [lang, t]
@@ -550,6 +549,11 @@ export default function CheckoutPage() {
   }, [startAtPayment, checkoutItems.length, paymentStepIndex]);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
+  // Web storefront: bank transfer is intentionally disabled.
+  useEffect(() => {
+    if (paymentMethod === 'bank_transfer') setPaymentMethod('card');
+  }, [paymentMethod]);
+
   const [pendingOrderId, setPendingOrderId] = useState(null);
   const [transferProof, setTransferProof] = useState(null); // File object for bank transfer
   /** After prepare Tap / Tamara create — mirrors server `delivery_fee`; null = use client estimate. */
@@ -946,8 +950,8 @@ export default function CheckoutPage() {
 
   const handlePay = () => {
     if (paymentMethod === 'card') handleCardPay();
-    else if (paymentMethod === 'bank_transfer') handleBankTransfer();
-    else handleTamara();
+    else if (paymentMethod === 'tamara') handleTamara();
+    else handleCardPay();
   };
 
   return (
