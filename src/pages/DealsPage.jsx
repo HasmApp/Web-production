@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, TrendingDown } from 'lucide-react';
-import { fetchProducts, fetchAppConfig } from '../services/api.js';
+import { fetchAppConfig } from '../services/api.js';
+import useLiveProductCatalog from '../hooks/useLiveProductCatalog.js';
 import ProductCard from '../components/product/ProductCard.jsx';
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
@@ -19,8 +20,7 @@ const DEALS_GRID_CHUNK_SIZE = 4;
 
 export default function DealsPage() {
   const { t, lang } = useLanguage();
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { products, loading } = useLiveProductCatalog();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('default');
   const [category, setCategory] = useState('');
@@ -32,24 +32,6 @@ export default function DealsPage() {
     setCategory(id);
     setSubcategory(null);
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const data = await fetchProducts();
-        if (!cancelled) {
-          setProducts(Array.isArray(data) ? data : data?.items || []);
-        }
-      } catch {
-        if (!cancelled) setProducts([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

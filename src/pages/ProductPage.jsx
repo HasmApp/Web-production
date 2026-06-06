@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext.jsx';
 import { savePendingCheckoutGroup } from '../utils/supplierCart.js';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
+import useProductLivePrice from '../hooks/useProductLivePrice.js';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
@@ -114,7 +115,7 @@ export default function ProductPage() {
   const [alert, setAlert] = useState(null);
   const [alertPrice, setAlertPrice] = useState('');
   const [showAlertModal, setShowAlertModal] = useState(false);
-  /** Unit price frozen when you open this page (from home/card). Same idea as mobile `ProductPage` `_currentPrice`. */
+  /** Live unit price (WS + resume refresh; seeded on page open). */
   const [lockedPrice, setLockedPrice] = useState(null);
   /** Full catalog, used to build the "More from this supplier" rail. */
   const [catalog, setCatalog] = useState([]);
@@ -169,6 +170,15 @@ export default function ProductPage() {
     };
     load();
   }, [id, isAuthenticated, navigate]);
+
+  useProductLivePrice(product ? id : null, (price, fresh) => {
+    setLockedPrice(price);
+    setProduct((prev) => {
+      if (!prev) return prev;
+      const base = fresh ? { ...prev, ...fresh } : prev;
+      return { ...base, current_price: price, currentPrice: price };
+    });
+  });
 
   // Load the catalog once to power the "More from this supplier" rail.
   useEffect(() => {

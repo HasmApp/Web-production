@@ -62,7 +62,6 @@ function resolveMainCategoryKey(mainRaw) {
     kitchen: 'catKitchen',
     lifestyle: 'catLifestyle',
     'life style': 'catLifestyle',
-    automotive: 'catAutomotive',
     construction: 'catConstruction',
     electronics: 'catElectronics',
   };
@@ -91,8 +90,6 @@ function resolveSubcategoryKey(subRaw) {
     accessories: 'subAccessories',
     bags: 'subBags',
     shoes: 'subShoes',
-    'car accessories': 'subCarAccessories',
-    equipment: 'subEquipment',
     'building materials': 'subBuildingMaterials',
     'power tools': 'subPowerTools',
     'plumbing tools': 'subPlumbingTools',

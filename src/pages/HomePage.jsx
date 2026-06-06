@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TrendingDown, Zap, Star, X, Search,
@@ -8,11 +8,11 @@ import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import ProductRailSection from '../components/shop/ProductRailSection.jsx';
-import { fetchMyPriceRequests, fetchProductById, fetchProducts, fetchAppConfig } from '../services/api.js';
+import { fetchMyPriceRequests, fetchProductById, fetchAppConfig } from '../services/api.js';
+import useLiveProductCatalog from '../hooks/useLiveProductCatalog.js';
 import ProductCard from '../components/product/ProductCard.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
-import config from '../config/config.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { useCart } from '../contexts/CartContext.jsx';
@@ -97,8 +97,7 @@ export default function HomePage() {
     { value: 'high',    label: t('priceHighLow') },
   ];
 
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { products, loading } = useLiveProductCatalog();
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState(null);
   const [sort, setSort] = useState('default');
@@ -110,22 +109,6 @@ export default function HomePage() {
     setCategory(id);
     setSubcategory(null);
   };
-  const wsRef = useRef(null);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchProducts();
-      setProducts(Array.isArray(data) ? data : data?.items || []);
-    } catch {
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, []);
-
   useEffect(() => {
     let cancelled = false;
     fetchAppConfig()
@@ -171,68 +154,6 @@ export default function HomePage() {
   useEffect(() => {
     setSearchInput(q);
   }, [q]);
-
-  // HTTP refresh: soft sync for everyone; live ticks come from `/ws/prices` (with or without JWT).
-  useEffect(() => {
-    const ms = 30000;
-    const interval = setInterval(async () => {
-      try {
-        const data = await fetchProducts();
-        const list = Array.isArray(data) ? data : data?.items || [];
-        setProducts(list);
-      } catch {
-        /* ignore */
-      }
-    }, ms);
-    return () => clearInterval(interval);
-  }, [isAuthenticated]);
-
-  // WebSocket real-time price updates (JWT optional — anonymous public stream on gateway).
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    const wsUrl = token
-      ? `${config.wsBaseUrl}/ws/prices?token=${encodeURIComponent(token)}`
-      : `${config.wsBaseUrl}/ws/prices`;
-
-    let ws = null;
-    let dead = false;
-
-    const timer = setTimeout(() => {
-      if (dead) return;
-      try {
-        ws = new WebSocket(wsUrl);
-        ws.onmessage = (e) => {
-          try {
-            const msg = JSON.parse(e.data);
-            const update = msg.type === 'price_update' ? msg.data : msg;
-            if (update.product_id != null && update.current_price !== undefined) {
-              const pid = String(update.product_id);
-              const num = Number(update.current_price);
-              setProducts((prev) =>
-                prev.map((p) => {
-                  const id = p._id != null ? String(p._id) : p.id != null ? String(p.id) : '';
-                  if (id !== pid) return p;
-                  return { ...p, current_price: num, currentPrice: num };
-                })
-              );
-            }
-          } catch {
-            /* ignore */
-          }
-        };
-        ws.onerror = () => {};
-        wsRef.current = ws;
-      } catch {
-        /* ignore */
-      }
-    }, 300);
-
-    return () => {
-      dead = true;
-      clearTimeout(timer);
-      ws?.close();
-    };
-  }, [isAuthenticated]);
 
   // Filter + sort
   const applySearch = (e) => {
