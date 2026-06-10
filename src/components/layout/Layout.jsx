@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar.jsx';
 import Footer from './Footer.jsx';
+import ShopHomeFooter from './ShopHomeFooter.jsx';
 import MobileBottomNav from './MobileBottomNav.jsx';
 import { BOTTOM_NAV_HEIGHT } from '../../design/shopTokens.js';
 
@@ -25,7 +26,11 @@ export default function Layout({ children }) {
       >
         {children}
       </main>
-      {!showMobileShopNav ? <Footer /> : null}
+      {pathname === '/' ? (
+        <ShopHomeFooter withBottomNav={showMobileShopNav} />
+      ) : (
+        !showMobileShopNav ? <Footer /> : null
+      )}
       {showMobileShopNav ? <MobileBottomNav /> : null}
     </div>
   );

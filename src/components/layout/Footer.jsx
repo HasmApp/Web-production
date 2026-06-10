@@ -10,6 +10,10 @@ import {
   contactPhone,
   contactPhoneDisplay,
   termsOfServiceUrl,
+  ministryOfCommerceLogoUrl,
+  vatLogoUrl,
+  commercialRegistrationNumber,
+  vatRegistrationNumber,
 } from '../../assets/branding.js';
 
 const supplierFormNextUrl = () => {
@@ -157,16 +161,36 @@ export default function Footer() {
             </form>
         </section>
 
-        <div className="border-t border-gray-800 mt-12 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <p>{tf('copyrightLine', { year })}</p>
-          <a
-            href={termsOfServiceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition-colors"
-          >
-            {t('termsOfService')}
-          </a>
+        <div className="border-t border-gray-800 mt-12 pt-8">
+          <div className="footer-compliance-grid mb-8">
+            <img
+              src={ministryOfCommerceLogoUrl}
+              alt={t('footerCrLogoAlt')}
+              className="footer-compliance-logo-moc brightness-110"
+            />
+            <img
+              src={vatLogoUrl}
+              alt={t('footerVatLogoAlt')}
+              className="footer-compliance-logo-vat brightness-110"
+            />
+            <p className="text-xs text-gray-400 tracking-wide text-center whitespace-nowrap">
+              {tf('footerCommercialRegistration', { crNumber: commercialRegistrationNumber })}
+            </p>
+            <p className="text-xs text-gray-400 tracking-wide text-center whitespace-nowrap">
+              {tf('footerVatRegistration', { vatNumber: vatRegistrationNumber })}
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+            <p>{tf('copyrightLine', { year })}</p>
+            <a
+              href={termsOfServiceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              {t('termsOfService')}
+            </a>
+          </div>
         </div>
       </div>
     </footer>
