@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Tag, ShoppingBag, Package, User, ClipboardList } from 'lucide-react';
+import { Home, Tag, ShoppingBag, Package, User } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
 import { useCart } from '../../contexts/CartContext.jsx';
 import { BOTTOM_NAV_HEIGHT } from '../../design/shopTokens.js';
@@ -7,7 +7,8 @@ import { BOTTOM_NAV_HEIGHT } from '../../design/shopTokens.js';
 const TABS = [
   { to: '/', labelKey: 'shopNavHome', icon: Home, match: (path) => path === '/' },
   { to: '/marketplace', labelKey: 'shopNavDeals', icon: Tag, match: (path) => path === '/marketplace' || path === '/deals' },
-  { to: '/demand', labelKey: 'shopNavDemand', icon: ClipboardList, match: (path) => path.startsWith('/demand') },
+  // LEGACY: demand is a homepage section, not a nav button.
+  // { to: '/demand', labelKey: 'shopNavDemand', icon: ClipboardList, match: (path) => path.startsWith('/demand') },
   { to: '/cart', labelKey: 'shopNavCart', icon: ShoppingBag, match: (path) => path.startsWith('/cart') },
   { to: '/orders', labelKey: 'shopNavOrders', icon: Package, match: (path) => path.startsWith('/orders') },
   { to: '/profile', labelKey: 'shopNavAccount', icon: User, match: (path) => path.startsWith('/profile') },
@@ -24,7 +25,7 @@ export default function MobileBottomNav() {
       style={{ height: BOTTOM_NAV_HEIGHT }}
       aria-label={t('shopBottomNavAria')}
     >
-      <ul className="grid h-full grid-cols-6">
+      <ul className="grid h-full grid-cols-5">
         {TABS.map(({ to, labelKey, icon: Icon, match }) => {
           const active = match(pathname);
           return (

@@ -5,6 +5,7 @@ import {
   LayoutGrid, Home as HomeIcon,
 } from 'lucide-react';
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
+import DemandSection from '../components/demand/DemandSection.jsx';
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 // LEGACY homepage rails: import ProductRailSection from '../components/shop/ProductRailSection.jsx';
@@ -627,14 +628,6 @@ export default function HomePage() {
               onOpenAuctionRoom={setOpenAuctionRoomId}
             />
 
-            <Link
-              to="/demand"
-              className="mb-6 flex flex-col gap-1 rounded-xl border border-primary/20 bg-primary-50 px-4 py-3 no-underline transition hover:border-primary/40 dark:border-primary/30 dark:bg-primary-900/20"
-            >
-              <span className="text-sm font-bold text-primary">{t('shopNavDemand')}</span>
-              <span className="text-xs text-gray-600 dark:text-gray-300">{t('demandPageHelp')}</span>
-            </Link>
-
             {!q && !loading ? (
               <>
                 {/* LEGACY: Best Sellers / New Arrivals rails
@@ -783,6 +776,12 @@ export default function HomePage() {
               </div>
             )}
           </div>
+        </div>
+      </section>
+
+      <section id="demand" className="border-t border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
+          <DemandSection />
         </div>
       </section>
 
