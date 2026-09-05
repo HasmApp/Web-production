@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { CartProvider } from './contexts/CartContext.jsx';
 import { LanguageProvider } from './contexts/LanguageContext.jsx';
 
+import LandingPage from './pages/LandingPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import DealsPage from './pages/DealsPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
@@ -40,15 +41,17 @@ function AppRoutes() {
       <Route path="/otp" element={<OtpPage />} />
 
       {/* Main app with layout */}
-      <Route path="/" element={<Layout><HomePage /></Layout>} />
-      <Route path="/packages" element={<Navigate to="/" replace />} />
-      <Route path="/package" element={<Navigate to="/" replace />} />
-      <Route path="/pakage" element={<Navigate to="/" replace />} />
-      <Route path="/packages/product/:id" element={<Navigate to="/" replace />} />
+      <Route path="/" element={<Layout><LandingPage /></Layout>} />
+      <Route path="/marketplace" element={<Layout><HomePage /></Layout>} />
+      {/* LEGACY aliases retained and redirected to the open marketplace. */}
+      <Route path="/packages" element={<Navigate to="/marketplace" replace />} />
+      <Route path="/package" element={<Navigate to="/marketplace" replace />} />
+      <Route path="/pakage" element={<Navigate to="/marketplace" replace />} />
+      <Route path="/packages/product/:id" element={<Navigate to="/marketplace" replace />} />
       <Route path="/deals" element={<Layout><DealsPage /></Layout>} />
       <Route path="/product/:id" element={<Layout><ProductPage /></Layout>} />
       <Route path="/cart" element={<Layout><CartPage /></Layout>} />
-      <Route path="/auctions" element={<Navigate to="/" replace />} />
+      <Route path="/auctions" element={<Navigate to="/marketplace" replace />} />
       <Route path="/favorites" element={<Layout><FavoritesPage /></Layout>} />
       <Route path="/orders" element={<Layout><OrdersPage /></Layout>} />
       <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
@@ -89,7 +92,7 @@ export default function App() {
             duration: 3000,
             style: {
               borderRadius: '12px',
-              fontFamily: "'Tajawal', 'Inter', system-ui, sans-serif",
+              fontFamily: "'Thmanyah Sans', 'Tajawal', system-ui, sans-serif",
               fontSize: '14px',
               fontWeight: '500',
             },

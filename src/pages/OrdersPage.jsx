@@ -178,7 +178,7 @@ export default function OrdersPage() {
           icon={Package}
           title={t('noOrdersYet')}
           description={t('noOrdersDesc')}
-          action={<Link to="/" className="btn-primary">{t('startShopping')}</Link>}
+          action={<Link to="/marketplace" className="btn-primary">{t('startShopping')}</Link>}
         />
       ) : (
         <div className="space-y-4">

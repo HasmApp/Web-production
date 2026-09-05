@@ -5,7 +5,7 @@ import { useCart } from '../../contexts/CartContext.jsx';
 import { BOTTOM_NAV_HEIGHT } from '../../design/shopTokens.js';
 
 const TABS = [
-  { to: '/', labelKey: 'shopNavHome', icon: Home, match: (path) => path === '/' },
+  { to: '/marketplace', labelKey: 'shopNavHome', icon: Home, match: (path) => path === '/marketplace' },
   { to: '/deals', labelKey: 'shopNavDeals', icon: Tag, match: (path) => path === '/deals' },
   { to: '/cart', labelKey: 'shopNavCart', icon: ShoppingBag, match: (path) => path.startsWith('/cart') },
   { to: '/orders', labelKey: 'shopNavOrders', icon: Package, match: (path) => path.startsWith('/orders') },

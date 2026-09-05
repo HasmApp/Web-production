@@ -156,7 +156,7 @@ export default function DealsPage() {
             icon={TrendingDown}
             title={t('noProductsFound')}
             description={t('homeFeedEmptyDeals')}
-            action={<Link to="/" className="btn-primary">{t('browseProducts')}</Link>}
+            action={<Link to="/marketplace" className="btn-primary">{t('browseProducts')}</Link>}
           />
         ) : (
           <>

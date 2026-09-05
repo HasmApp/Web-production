@@ -136,12 +136,12 @@ export default function ProductPage() {
         const data = await fetchProductById(id);
         if (!data) {
           toast.error(t('productNotFound'));
-          navigate('/');
+          navigate('/marketplace');
           return;
         }
         if (isBundlePackageProduct(data)) {
           toast.error(t('productNotFound'));
-          navigate('/');
+          navigate('/marketplace');
           return;
         }
         setProduct(data);
@@ -163,7 +163,7 @@ export default function ProductPage() {
         }
       } catch {
         toast.error(t('productNotFound'));
-        navigate('/');
+        navigate('/marketplace');
       } finally {
         setLoading(false);
       }

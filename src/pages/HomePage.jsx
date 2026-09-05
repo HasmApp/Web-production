@@ -77,6 +77,12 @@ function acceptedOfferEntryIsFulfillable(entry) {
 /** ~2 rows before certified banner (matches mobile `firstGridChunkSize`). */
 const HOME_GRID_CHUNK_SIZE = 4;
 
+// LEGACY - The marketplace used to double as the public landing page.
+// Its hero/stats/payment-promo sections are retained below for future
+// reactivation, but hidden now that `/` is a dedicated HASM business landing
+// page and `/marketplace` is focused on product discovery.
+const SHOW_LEGACY_MARKETPLACE_HERO = false;
+
 export default function HomePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -281,6 +287,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen">
+      {SHOW_LEGACY_MARKETPLACE_HERO && (
+      <>
       {/* Hero — LTR grid: app card left, copy & CTAs right (Arabic copy is RTL inside the right column) */}
       <section className="relative isolate overflow-hidden bg-gradient-to-br from-primary-700 via-primary to-violet-600 text-white">
         <div className="pointer-events-none absolute inset-0 opacity-[0.15]">
@@ -442,6 +450,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      </>
+      )}
 
       {/* Products section */}
       <section id="products" className="max-w-7xl mx-auto px-4 sm:px-6 py-10">

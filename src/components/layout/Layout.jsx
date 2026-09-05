@@ -6,7 +6,7 @@ import ShopHomeFooter from './ShopHomeFooter.jsx';
 import MobileBottomNav from './MobileBottomNav.jsx';
 import { BOTTOM_NAV_HEIGHT } from '../../design/shopTokens.js';
 
-const SHOP_TAB_PATHS = ['/', '/deals', '/cart', '/orders', '/profile'];
+const SHOP_TAB_PATHS = ['/marketplace', '/deals', '/cart', '/orders', '/profile'];
 
 export default function Layout({ children }) {
   const { pathname } = useLocation();
@@ -26,7 +26,7 @@ export default function Layout({ children }) {
       >
         {children}
       </main>
-      {pathname === '/' ? (
+      {pathname === '/marketplace' ? (
         <ShopHomeFooter withBottomNav={showMobileShopNav} />
       ) : (
         !showMobileShopNav ? <Footer /> : null

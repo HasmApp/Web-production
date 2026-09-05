@@ -76,7 +76,7 @@ export default function CartPage() {
           icon={ShoppingCart}
           title={t('cartEmpty')}
           description={t('cartEmptyDesc')}
-          action={<Link to="/" className="btn-primary">{t('browseProducts')}</Link>}
+          action={<Link to="/marketplace" className="btn-primary">{t('browseProducts')}</Link>}
         />
       </div>
     );
@@ -100,7 +100,7 @@ export default function CartPage() {
         ))}
       </div>
       <Link
-        to="/"
+        to="/marketplace"
         className="mt-6 block text-center text-sm text-primary hover:underline"
       >
         {t('continueShopping')}

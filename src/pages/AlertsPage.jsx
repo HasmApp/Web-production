@@ -89,7 +89,7 @@ export default function AlertsPage() {
           icon={Bell}
           title={t('noAlertsYet')}
           description={t('alertsLongDesc')}
-          action={<Link to="/" className="btn-primary">{t('browseProducts')}</Link>}
+          action={<Link to="/marketplace" className="btn-primary">{t('browseProducts')}</Link>}
         />
       ) : (
         <div className="space-y-4">
