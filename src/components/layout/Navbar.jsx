@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
-  ShoppingBag, ShoppingCart, Heart, Package, User, Menu, X,
+  ShoppingCart, Heart, Package, User, Menu, X,
   Sun, Moon, Search, Bell, LogOut, Settings, Home, TrendingDown, Languages,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
@@ -92,16 +92,6 @@ export default function Navbar() {
 
           {/* Toolbar — ms-auto = inline end (left in RTL, right in LTR) */}
           <div className="flex min-w-0 shrink-0 items-center gap-0.5 sm:gap-1 ms-auto">
-            {/* Primary store entry: the public home is now the HASM business landing page. */}
-            <Link
-              to="/marketplace"
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#2F2446] px-2.5 text-xs font-bold text-white transition hover:bg-[#241B35] sm:px-4"
-              aria-label={t('allProducts')}
-            >
-              <ShoppingBag className="h-4 w-4" />
-              <span className="hidden sm:inline">{t('allProducts')}</span>
-            </Link>
-
             {/* Search */}
             <button
               type="button"

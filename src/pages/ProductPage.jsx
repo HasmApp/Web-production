@@ -152,11 +152,12 @@ export default function ProductPage() {
           navigate('/marketplace');
           return;
         }
-        if (isBundlePackageProduct(data)) {
-          toast.error(t('productNotFound'));
-          navigate('/marketplace');
-          return;
-        }
+        // LEGACY: bundle lots were sent to /packages. They stay on /marketplace now.
+        // if (isBundlePackageProduct(data)) {
+        //   toast.error(t('productNotFound'));
+        //   navigate('/marketplace');
+        //   return;
+        // }
         setProduct(data);
         const snap = Number(data.current_price ?? data.currentPrice ?? 0);
         setLockedPrice(Number.isFinite(snap) ? snap : 0);

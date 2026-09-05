@@ -195,7 +195,8 @@ export default function HomePage() {
 
   const filtered = useMemo(() => {
     let list = filterInStock(products);
-    list = excludePackageProducts(list);
+    // LEGACY: list = excludePackageProducts(list);
+    // Full-lot listings now belong on /marketplace (/packages redirects here).
     // Stock-type ("by pieces") toggle is retired; the home feed now shows both
     // full-stock and by-pieces products (standard dynamic products are created
     // as by-pieces, so filtering to full_stock hid most of them).
@@ -266,7 +267,7 @@ export default function HomePage() {
   /** Catalog slice for Best Sellers / New Arrivals rails (matches mobile `_buildCatalogProducts`). */
   const catalogForCarousels = useMemo(() => {
     let list = filterInStock(products);
-    list = excludePackageProducts(list);
+    // LEGACY: list = excludePackageProducts(list);
     list = excludeDealsPageProducts(list);
     return list.filter((p) => {
       if (!shopProductMatchesCategory(p, category)) return false;
