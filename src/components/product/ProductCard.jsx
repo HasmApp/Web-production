@@ -19,6 +19,7 @@ import {
   productMoq,
   productSeller,
   productUnit,
+  localizeProductCondition,
 } from '../../utils/b2bProduct.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
@@ -144,7 +145,7 @@ export default function ProductCard({
             {tf('availableQuantityChip', { n: available, unit })}
           </span>
           {condition ? (
-            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">{condition}</span>
+            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">{localizeProductCondition(condition, t)}</span>
           ) : null}
         </div>
         {location ? (
@@ -153,9 +154,9 @@ export default function ProductCard({
           </p>
         ) : null}
         {seller ? (
-          <p className="flex w-full items-center justify-start gap-1 truncate text-xs text-gray-500 dark:text-gray-400">
+          <p className="flex w-full items-center justify-start gap-1 truncate text-start text-xs text-gray-500 dark:text-gray-400">
             <Building2 className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="truncate">{seller}</span>
+            <span className="min-w-0 truncate text-start">{seller}</span>
           </p>
         ) : null}
         {pickupOnly ? (

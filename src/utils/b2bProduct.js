@@ -25,6 +25,41 @@ export const productCondition = (product) =>
 export const productLifecycle = (product) =>
   firstValue(product, ['lifecycle', 'lifecycle_status', 'lifecycleStatus', 'inventory_lifecycle']);
 
+const LIFECYCLE_KEYS = {
+  new: 'lifecycleNew',
+  surplus: 'lifecycleSurplus',
+  at_risk: 'lifecycleAtRisk',
+  atrisk: 'lifecycleAtRisk',
+  dead_stock: 'lifecycleDeadStock',
+  deadstock: 'lifecycleDeadStock',
+  expired: 'lifecycleExpired',
+  recycling: 'lifecycleRecycling',
+};
+
+const CONDITION_KEYS = {
+  new: 'conditionNew',
+  like_new: 'conditionLikeNew',
+  likenew: 'conditionLikeNew',
+  used: 'conditionUsed',
+  refurbished: 'conditionRefurbished',
+  damaged: 'conditionDamaged',
+  expired: 'conditionExpired',
+};
+
+const slugKey = (value) => String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+export function localizeProductLifecycle(value, t) {
+  if (!value) return '';
+  const key = LIFECYCLE_KEYS[slugKey(value)] || LIFECYCLE_KEYS[slugKey(value).replace(/_/g, '')];
+  return key ? t(key) : value;
+}
+
+export function localizeProductCondition(value, t) {
+  if (!value) return '';
+  const key = CONDITION_KEYS[slugKey(value)] || CONDITION_KEYS[slugKey(value).replace(/_/g, '')];
+  return key ? t(key) : value;
+}
+
 export const productCurrency = (product) =>
   String(firstValue(product, ['currency', 'currency_code', 'currencyCode']) || 'SAR').toUpperCase();
 

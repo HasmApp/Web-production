@@ -55,6 +55,8 @@ import {
   productSeller,
   productUnit,
   sellerIdFromProduct,
+  localizeProductLifecycle,
+  localizeProductCondition,
 } from '../utils/b2bProduct.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
@@ -516,7 +518,7 @@ export default function ProductPage() {
               {title}
             </h1>
             {b2bSeller && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1" dir="auto">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 text-start">
                 {tf('bySupplier', { name: b2bSeller })}
               </p>
             )}
@@ -525,15 +527,15 @@ export default function ProductPage() {
                 [t('b2bMoq'), `${moq} ${unit}`],
                 [t('availableQuantityLabel'), `${availableQty} ${unit}`],
                 [t('b2bUnit'), productUnit(product)],
-                [t('b2bLifecycle'), lifecycle],
-                [t('b2bCondition'), condition],
+                [t('b2bLifecycle'), localizeProductLifecycle(lifecycle, t)],
+                [t('b2bCondition'), localizeProductCondition(condition, t)],
                 [t('b2bCountry'), country],
                 [t('b2bLocation'), locationName],
                 [t('b2bSeller'), b2bSeller],
               ].filter(([, value]) => value).map(([label, value]) => (
-                <div key={label}>
+                <div key={label} className="text-start">
                   <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
-                  <dd className="mt-0.5 font-semibold text-gray-900 dark:text-white" dir="auto">{value}</dd>
+                  <dd className="mt-0.5 font-semibold text-gray-900 dark:text-white">{value}</dd>
                 </div>
               ))}
             </dl>
