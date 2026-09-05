@@ -15,7 +15,7 @@ import { formatOrderDate, getOrderDateParts } from '../utils/formatLocaleDate.js
 const STATUS_META = {
   pending: { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20', tKey: 'statusPending' },
   confirmed: { icon: CheckCircle, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', tKey: 'statusConfirmed' },
-  processing: { icon: AlertCircle, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20', tKey: 'statusProcessing' },
+  processing: { icon: AlertCircle, color: 'text-primary', bg: 'bg-primary-50 dark:bg-primary-900/20', tKey: 'statusProcessing' },
   shipped: { icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', tKey: 'statusShipped' },
   delivered: { icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', tKey: 'statusDelivered' },
   cancelled: { icon: XCircle, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', tKey: 'statusCancelled' },

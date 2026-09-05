@@ -105,6 +105,25 @@
     font-family: var(--font-heading-en);
   }
 
+  .brand-wordmark {
+    font-family: 'Thmanyah Serif Display', serif;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: #2F2446;
+  }
+  .brand-wordmark--en {
+    font-family: var(--font-heading-en);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .brand-wordmark--invert {
+    color: #ffffff;
+  }
+  .dark .brand-wordmark:not(.brand-wordmark--invert) {
+    color: #ffffff;
+  }
+
   /* Riyal + amount: keep numeric order correct in RTL (same idea as dashboard). */
   .currency-rtl {
     direction: ltr;

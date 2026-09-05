@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCart } from '../../contexts/CartContext.jsx';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
-import { logoUrl } from '../../assets/branding.js';
+import BrandWordmark from '../brand/BrandWordmark.jsx';
 
 const navLinks = [
   { to: '/', labelKey: 'home', icon: Home },
@@ -66,11 +66,7 @@ export default function Navbar() {
             className="flex min-w-0 shrink items-center py-1.5 me-2 sm:me-4"
             aria-label={t('brandName')}
           >
-            <img
-              src={logoUrl}
-              alt=""
-              className="h-[3.25rem] sm:h-[4.25rem] md:h-[4.5rem] w-auto max-w-[min(9rem,36vw)] sm:max-w-[min(240px,48vw)] md:max-w-[min(360px,78vw)] object-contain object-start dark:brightness-110"
-            />
+            <BrandWordmark size="md" />
           </Link>
 
           {/* Desktop nav */}

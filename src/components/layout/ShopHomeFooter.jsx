@@ -1,7 +1,7 @@
 import { HelpCircle, Mail, Shield, Zap, Globe } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
+import BrandWordmark from '../brand/BrandWordmark.jsx';
 import {
-  logoUrl,
   termsOfServiceUrl,
   contactEmail,
   ministryOfCommerceLogoUrl,
@@ -29,7 +29,7 @@ export default function ShopHomeFooter({ withBottomNav = false }) {
       <div className="shop-home-footer__content">
         <div className="shop-home-footer__left">
           <div className="shop-home-footer__logo-wrap">
-            <img src={logoUrl} alt={t('brandName')} className="shop-home-footer__logo" />
+            <BrandWordmark size="md" />
           </div>
           <p className="shop-home-footer__copyright">
             © {year} {t('footerRightsReserved')}.

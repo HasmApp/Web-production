@@ -41,10 +41,17 @@ function CertifiedStampIcon({ className = 'w-10 h-10', hero = false }) {
 }
 
 /** Trust strip — certified / verified products with green stamp (hero + card). */
-export default function CertifiedProductsBanner({ variant = 'card', className = '' }) {
+export default function CertifiedProductsBanner({
+  variant = 'card',
+  className = '',
+  title,
+  subtitle,
+}) {
   const { t, lang } = useLanguage();
   const isHero = variant === 'hero';
   const textAlign = lang === 'ar' ? 'text-right' : 'text-left';
+  const heading = title || t('certifiedTitle');
+  const line = subtitle || t('certifiedSub');
 
   if (isHero) {
     return (
@@ -53,8 +60,8 @@ export default function CertifiedProductsBanner({ variant = 'card', className = 
       >
         <CertifiedStampIcon hero />
         <div className={textAlign}>
-          <p className="text-sm font-bold leading-tight text-white">{t('certifiedTitle')}</p>
-          <p className="mt-0.5 text-xs text-white/70">{t('certifiedSub')}</p>
+          <p className="text-sm font-bold leading-tight text-white">{heading}</p>
+          <p className="mt-0.5 text-xs text-white/70">{line}</p>
         </div>
       </div>
     );
@@ -76,9 +83,9 @@ export default function CertifiedProductsBanner({ variant = 'card', className = 
         />
         <div className={`min-w-0 flex-1 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
           <p className="text-base font-bold text-gray-900 dark:text-white sm:text-lg">
-            {t('certifiedTitle')}
+            {heading}
           </p>
-          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{t('certifiedSub')}</p>
+          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{line}</p>
         </div>
         <div className={`hidden flex-shrink-0 sm:flex ${lang === 'ar' ? 'order-first' : ''}`}>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">

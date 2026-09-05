@@ -6,7 +6,7 @@ import { verifyOTP, loginUser, getMe } from '../services/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { apiErrorMessage } from '../utils/apiErrorMessage.js';
-import { logoUrl } from '../assets/branding.js';
+import BrandWordmark from '../components/brand/BrandWordmark.jsx';
 
 const OTP_LENGTH = 6;
 
@@ -91,11 +91,7 @@ export default function OtpPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-8 sm:px-6 sm:py-12 bg-white dark:bg-gray-950">
       <div className="w-full max-w-sm min-w-0 mx-auto">
         <div className="mb-8 sm:mb-10 min-w-0">
-          <img
-            src={logoUrl}
-            alt={t('brandName')}
-            className="h-28 w-auto max-w-[min(520px,96vw)] sm:h-32 object-contain object-start dark:brightness-110 lg:h-20 lg:max-w-[min(360px,90vw)]"
-          />
+          <BrandWordmark size="lg" />
         </div>
 
         <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center mb-5 sm:mb-6">

@@ -56,7 +56,7 @@ function AuctionRailCard({ entry, onOpen }) {
             className={`absolute top-3 start-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold text-white shadow ${
               isWon
                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
-                : 'bg-gradient-to-r from-primary to-violet-600'
+                : 'bg-gradient-to-r from-primary to-primary-700'
             }`}
           >
             {isWon ? <Trophy className="h-3 w-3" /> : <Gavel className="h-3 w-3" />}

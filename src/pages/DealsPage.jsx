@@ -11,7 +11,7 @@ import TabEmptyState from '../components/layout/TabEmptyState.jsx';
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
-import { SHOP_CATEGORIES } from '../constants/shopCategories.js';
+import { VISIBLE_SHOP_CATEGORIES } from '../constants/shopCategories.js';
 import { buildDealsCatalog } from '../utils/productFeedFilters.js';
 import { BOTTOM_NAV_EMPTY_STATE_CLEARANCE, SORT_SELECT_CLASS, PRODUCT_RAIL_CARD_CLASS } from '../design/shopTokens.js';
 
@@ -67,7 +67,7 @@ export default function DealsPage() {
       <div className="sticky top-16 z-20 border-b border-gray-100 bg-gray-50/95 px-4 py-3 backdrop-blur-md dark:border-gray-800 dark:bg-gray-950/95">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white mb-3">{t('shopNavDeals')}</h1>
         <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 mb-2">
-          {SHOP_CATEGORIES.map(({ id, labelKey, icon: Icon }) => (
+          {VISIBLE_SHOP_CATEGORIES.map(({ id, labelKey, icon: Icon }) => (
             <button
               type="button"
               key={id || 'all'}
@@ -139,8 +139,8 @@ export default function DealsPage() {
                   </p>
                 </div>
                 <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-1' : 'sm:order-4'}`}>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-4 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/30 px-4 py-1.5 text-xs font-semibold text-primary-700 dark:text-primary-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                     {t('tamaraAdBadge')}
                   </span>
                 </div>

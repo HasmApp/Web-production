@@ -8,6 +8,7 @@ import { PlatformConfigProvider } from './contexts/PlatformConfigContext.jsx';
 
 import LandingPage from './pages/LandingPage.jsx';
 import HomePage from './pages/HomePage.jsx';
+import DemandPage from './pages/DemandPage.jsx';
 import DealsPage from './pages/DealsPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
 import CartPage from './pages/CartPage.jsx';
@@ -44,6 +45,11 @@ function AppRoutes() {
       {/* Main app with layout */}
       <Route path="/" element={<Layout><LandingPage /></Layout>} />
       <Route path="/marketplace" element={<Layout><HomePage /></Layout>} />
+      <Route path="/demand" element={
+        <ProtectedRoute>
+          <Layout><DemandPage /></Layout>
+        </ProtectedRoute>
+      } />
       {/* LEGACY aliases retained and redirected to the open marketplace. */}
       <Route path="/packages" element={<Navigate to="/marketplace" replace />} />
       <Route path="/package" element={<Navigate to="/marketplace" replace />} />

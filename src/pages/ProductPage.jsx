@@ -569,8 +569,8 @@ export default function ProductPage() {
                 </p>
               </div>
               <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-1' : 'sm:order-4'}`}>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-4 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/30 px-4 py-1.5 text-xs font-semibold text-primary-700 dark:text-primary-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                   {t('tamaraAdBadge')}
                 </span>
               </div>

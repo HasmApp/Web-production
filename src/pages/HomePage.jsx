@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   TrendingDown, Zap, Star, X, Search,
-  LayoutGrid, Shirt, Home as HomeIcon, Leaf, UtensilsCrossed,
+  LayoutGrid, Home as HomeIcon,
 } from 'lucide-react';
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
@@ -44,10 +44,10 @@ import {
 /** IDs must match Dashboard / product-service (e.g. InsertProduct: Fashion, HomeLiving, LifeStyle, …). */
 const CATEGORIES = [
   { id: '', labelKey: 'all', icon: LayoutGrid },
-  { id: 'Fashion', labelKey: 'catFashion', icon: Shirt },
-  { id: 'HomeLiving', labelKey: 'catHomeLiving', icon: HomeIcon },
-  { id: 'Kitchen', labelKey: 'catKitchen', icon: UtensilsCrossed },
-  { id: 'LifeStyle', labelKey: 'catLifestyle', icon: Leaf },
+  // { id: 'Fashion', labelKey: 'catFashion', icon: Shirt },
+  // { id: 'HomeLiving', labelKey: 'catHomeLiving', icon: HomeIcon },
+  // { id: 'Kitchen', labelKey: 'catKitchen', icon: UtensilsCrossed },
+  // { id: 'LifeStyle', labelKey: 'catLifestyle', icon: Leaf },
 ];
 
 /** Same keys / English labels as Mobile-production `home_page.dart` `_subcategories`. */

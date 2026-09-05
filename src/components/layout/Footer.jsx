@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Linkedin, Instagram, Mail, Phone } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
+import BrandWordmark from '../brand/BrandWordmark.jsx';
 import {
-  logoUrl,
   linkedInCompanyUrl,
   instagramUrl,
   contactEmail,
@@ -37,11 +37,7 @@ export default function Footer() {
   };
 
   const shopLinks = [
-    { labelKey: 'footerCategoryAll', to: '/' },
-    { labelKey: 'footerCategoryFashion', to: '/' },
-    { labelKey: 'footerCategoryHomeLiving', to: '/' },
-    { labelKey: 'catKitchen', to: '/' },
-    { labelKey: 'catLifestyle', to: '/' },
+    { labelKey: 'footerCategoryAll', to: '/marketplace' },
   ];
 
   const accountLinks = [
@@ -57,11 +53,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-2">
             <div className="flex items-center mb-5" aria-label={t('brandName')}>
-              <img
-                src={logoUrl}
-                alt=""
-                className="h-16 sm:h-20 md:h-[5.25rem] w-auto max-w-[min(400px,88vw)] object-contain object-start brightness-110"
-              />
+              <BrandWordmark invert size="lg" />
             </div>
             <p className="text-sm leading-relaxed max-w-xs">
               {t('footerTagline')}

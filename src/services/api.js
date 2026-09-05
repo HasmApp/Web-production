@@ -426,4 +426,14 @@ export const trackShipment = async (orderId) => {
   return res.data;
 };
 
+export const createDemand = async (payload) => {
+  const res = await api.post('/demand', payload);
+  return res.data;
+};
+
+export const getMyDemand = async (params = {}) => {
+  const res = await api.get('/demand', { params });
+  return res.data;
+};
+
 export default api;

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { loginUser } from '../services/api.js';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { apiErrorMessage } from '../utils/apiErrorMessage.js';
-import { logoUrl } from '../assets/branding.js';
+import BrandWordmark from '../components/brand/BrandWordmark.jsx';
 import CurrencyIcon from '../components/common/CurrencyIcon.jsx';
 
 export default function LoginPage() {
@@ -37,11 +37,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex">
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary-600 via-primary to-primary-400 p-12 flex-col justify-between">
         <div>
-          <img
-            src={logoUrl}
-            alt={t('brandName')}
-            className="h-20 sm:h-24 md:h-28 lg:h-32 w-auto max-w-[min(440px,90vw)] object-contain object-start brightness-0 invert opacity-95"
-          />
+          <BrandWordmark invert size="xl" />
         </div>
         <div>
           <h1 className="text-4xl font-extrabold text-white leading-tight mb-4">
@@ -69,11 +65,7 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white dark:bg-gray-950">
         <div className="w-full max-w-sm">
           <div className="mb-8 lg:hidden">
-            <img
-              src={logoUrl}
-              alt={t('brandName')}
-              className="h-28 w-auto max-w-[min(520px,96vw)] sm:h-32 object-contain object-start dark:brightness-110"
-            />
+            <BrandWordmark size="lg" />
           </div>
 
           <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-2">{t('welcomeBack')}</h2>

@@ -11,6 +11,9 @@ export const SHOP_CATEGORIES = [
   { id: 'LifeStyle', labelKey: 'catLifestyle', icon: Leaf },
 ];
 
+/** Shop UI currently shows All only; world categories stay in SHOP_CATEGORIES. */
+export const VISIBLE_SHOP_CATEGORIES = SHOP_CATEGORIES.filter((category) => !category.id);
+
 /** Same keys as Mobile-production `shop_subcategories.dart`. */
 export const SHOP_SUBCATEGORIES = {
   Fashion: [
@@ -46,12 +49,22 @@ export function resolveShopCategory(raw) {
   return { main, sub };
 }
 
-export function isHiddenFromShop(_product) {
+function isFoodListing(product) {
+  const raw = (product?.category ?? '').toString().trim().toLowerCase();
+  const { main, sub } = resolveShopCategory(product?.category);
+  if (raw.startsWith('food')) return true;
+  if (main === 'Food') return true;
+  if (main === 'Kitchen' && (!sub || sub.toLowerCase() === 'foods')) return true;
   return false;
 }
 
+/** Current commercial scope is food only. Other categories stay in the system. */
+export function isHiddenFromShop(product) {
+  return !isFoodListing(product);
+}
+
 export function excludeHiddenShopProducts(products) {
-  return Array.isArray(products) ? products : [];
+  return (Array.isArray(products) ? products : []).filter((product) => !isHiddenFromShop(product));
 }
 
 export function productMatchesCategory(product, categoryId) {

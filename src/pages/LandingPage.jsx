@@ -3,18 +3,16 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
-  Boxes,
   Building2,
-  Database,
-  GitMerge,
   Globe2,
   LockKeyhole,
   Recycle,
-  Search,
   ShieldCheck,
-  Upload,
 } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
+import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
+import BrandWordmark from '../components/brand/BrandWordmark.jsx';
+import warehouseBg from '../assets/landing-warehouse.png';
 
 const COPY = {
   en: {
@@ -25,12 +23,16 @@ const COPY = {
     browse: 'Browse the marketplace',
     company: 'List company inventory',
     trust: 'Built for companies managing real inventory',
+    brandMark: 'HASM',
+    brandLine: 'Where supply finds its demand.',
+    verifiedTitle: 'A trusted company for both sides',
+    verifiedSub: 'Sell stock securely. Buy through a verified party.',
     supply: 'Supply',
-    supplyText: 'Connect ERP, WMS, and inventory systems—or add stock manually and by Excel.',
+    supplyText: 'Add your company stock to the platform.',
     demand: 'Demand',
-    demandText: 'Capture what companies consume, purchase, and need through structured requests and bulk uploads.',
-    intelligence: 'Intelligence & matching',
-    intelligenceText: 'Compare product, quantity, location, timing, condition, price, and company policy.',
+    demandText: 'Tell us what your company needs to buy.',
+    intelligence: 'HASM handles the rest',
+    intelligenceText: 'Organizing the stock and finding the right fit happens inside HASM — not in public.',
     routesTitle: 'One data layer. The right route for every item.',
     routesText:
       'HASM is not only a marketplace. It is the infrastructure between inventory systems, demand signals, and approved distribution channels.',
@@ -40,13 +42,13 @@ const COPY = {
     publicText: 'Approved public listings available for business discovery and inquiry.',
     recovery: 'Recycling & recovery',
     recoveryText: 'A responsible destination for expired or non-sellable inventory.',
-    howTitle: 'From fragmented data to a clear decision',
-    step1: 'Bring the data',
-    step1Text: 'API connections, manual entry, and reusable Excel imports.',
-    step2: 'Understand the opportunity',
-    step2Text: 'Lifecycle visibility identifies new, surplus, at-risk, dead, and expired stock.',
-    step3: 'Match and route',
-    step3Text: 'Connect compatible supply and demand while respecting each company’s policies.',
+    howTitle: 'You share the stock. HASM handles the rest.',
+    step1: 'Add what you have or need',
+    step1Text: 'Send the stock you want to sell, or what your company wants to buy.',
+    step2: 'HASM prepares it',
+    step2Text: 'We organize the opportunity inside our system. That work is not shown to the other side.',
+    step3: 'You get the outcome',
+    step3Text: 'A secure sale or a trusted purchase, through one party.',
     ctaTitle: 'Turn inventory into intelligence.',
     ctaText: 'Discover approved public B2B inventory in the HASM marketplace.',
   },
@@ -58,12 +60,16 @@ const COPY = {
     browse: 'استعرض السوق',
     company: 'أضف مخزون شركتك',
     trust: 'مصممة للشركات التي تدير مخزونًا حقيقيًا',
+    brandMark: 'حسم',
+    brandLine: 'حيث يجد العرض طلبه.',
+    verifiedTitle: 'جهة موثوقة للطرفين',
+    verifiedSub: 'بِع مخزونك بأمان. واشترِ عبر طرف موثّق.',
     supply: 'المعروض',
-    supplyText: 'اربط أنظمة ERP وWMS والمخزون، أو أضف المنتجات يدويًا ومن خلال ملفات إكسل.',
+    supplyText: 'أضف مخزون شركتك إلى المنصة.',
     demand: 'الطلب',
-    demandText: 'اجمع ما تستهلكه الشركات وتشتريه وتحتاجه عبر طلبات منظمة ورفع جماعي.',
-    intelligence: 'الذكاء والمطابقة',
-    intelligenceText: 'قارن المنتج والكمية والموقع والتوقيت والحالة والسعر وسياسات الشركة.',
+    demandText: 'أخبرونا بما تريد شركتكم شراءه.',
+    intelligence: 'حسم تتولى الباقي',
+    intelligenceText: 'ترتيب المخزون وإيجاد التوافق يتم داخل حسم — وليس علنًا.',
     routesTitle: 'طبقة بيانات واحدة. والمسار الأنسب لكل منتج.',
     routesText:
       'حسم ليست مجرد سوق، بل البنية التي تربط أنظمة المخزون وإشارات الطلب وقنوات التوزيع المعتمدة.',
@@ -73,13 +79,13 @@ const COPY = {
     publicText: 'منتجات معتمدة للعرض العام والاكتشاف والتواصل بين الشركات.',
     recovery: 'إعادة التدوير والاسترداد',
     recoveryText: 'وجهة مسؤولة للمخزون المنتهي أو غير القابل للبيع.',
-    howTitle: 'من بيانات متفرقة إلى قرار واضح',
-    step1: 'اجمع البيانات',
-    step1Text: 'تكاملات API وإدخال يدوي واستيراد إكسل قابل لإعادة الاستخدام.',
-    step2: 'افهم الفرصة',
-    step2Text: 'توضح دورة الحياة المخزون الجديد والفائض والمعرض للخطر والراكد والمنتهي.',
-    step3: 'طابق ووجّه',
-    step3Text: 'اربط العرض بالطلب المتوافق مع احترام سياسات كل شركة.',
+    howTitle: 'أنتم تشاركون المخزون. حسم تتولى الباقي.',
+    step1: 'أضيفوا ما لديكم أو ما تحتاجونه',
+    step1Text: 'أرسلوا المخزون الذي تريدون بيعه، أو ما تريد شركتكم شراءه.',
+    step2: 'حسم تجهّزه',
+    step2Text: 'نرتّب الفرصة داخل نظامنا. هذا العمل لا يظهر للطرف الآخر.',
+    step3: 'تصلون للنتيجة',
+    step3Text: 'بيع آمن أو شراء موثوق، عبر جهة واحدة.',
     ctaTitle: 'حوّل المخزون إلى معرفة.',
     ctaText: 'اكتشف مخزون الأعمال المعتمد للعرض العام في سوق حسم.',
   },
@@ -102,26 +108,27 @@ export default function LandingPage() {
     document.querySelector('meta[name="description"]')?.setAttribute('content', description);
   }, [lang]);
 
-  const pillars = [
-    { icon: Boxes, title: c.supply, text: c.supplyText },
-    { icon: Search, title: c.demand, text: c.demandText },
-    { icon: GitMerge, title: c.intelligence, text: c.intelligenceText },
-  ];
   const routes = [
     { icon: LockKeyhole, title: c.private, text: c.privateText },
     { icon: Globe2, title: c.public, text: c.publicText },
     { icon: Recycle, title: c.recovery, text: c.recoveryText },
   ];
   const steps = [
-    { icon: Upload, title: c.step1, text: c.step1Text },
-    { icon: Database, title: c.step2, text: c.step2Text },
-    { icon: GitMerge, title: c.step3, text: c.step3Text },
+    { title: c.step1, text: c.step1Text },
+    { title: c.step2, text: c.step2Text },
+    { title: c.step3, text: c.step3Text },
   ];
 
   return (
     <div className="bg-[#F8F7FA] text-[#241B35] dark:bg-[#17121F] dark:text-white">
       <section className="relative isolate overflow-hidden bg-[#2F2446] text-white">
-        <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:64px_64px]" />
+        <img
+          src={warehouseBg}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-[#2F2446]/55" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#241B35]/88 via-[#2F2446]/62 to-[#2F2446]/28 rtl:bg-gradient-to-l" />
         <div className="relative mx-auto grid min-h-[690px] max-w-7xl items-center gap-14 px-5 py-24 sm:px-8 lg:grid-cols-[1.2fr_.8fr] lg:px-10">
           <div className="max-w-3xl">
             <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white/90">
@@ -134,6 +141,12 @@ export default function LandingPage() {
             <p className="mt-7 max-w-2xl text-lg leading-8 text-white/75 sm:text-xl">
               {c.intro}
             </p>
+            <CertifiedProductsBanner
+              variant="hero"
+              className="mt-7"
+              title={c.verifiedTitle}
+              subtitle={c.verifiedSub}
+            />
             <div className="mt-10 flex flex-wrap gap-3">
               <Link
                 to="/marketplace"
@@ -152,26 +165,28 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/15 bg-white/[0.07] p-6 backdrop-blur-sm sm:p-8">
-            <p className="mb-7 text-sm font-semibold uppercase tracking-[.15em] text-white/55">
-              {c.trust}
-            </p>
-            <div className="space-y-7">
-              {pillars.map(({ icon: Icon, title, text }, index) => (
-                <div key={title} className="flex gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-semibold text-white/40">0{index + 1}</span>
-                      <h2 className="text-xl font-bold">{title}</h2>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-white/65">{text}</p>
-                  </div>
-                </div>
-              ))}
+          <div className="border-s border-white/20 ps-8 sm:ps-10">
+            <p className="text-sm text-white/50">{c.trust}</p>
+            <div className="mt-10 flex items-start justify-between gap-4">
+              <div className="max-w-[9.5rem]">
+                <p className="text-lg font-semibold">{c.supply}</p>
+                <p className="mt-2 text-sm leading-6 text-white/60">{c.supplyText}</p>
+              </div>
+              <div className="flex min-w-0 flex-1 items-center self-center px-1">
+                <span className="h-px flex-1 bg-white/35" />
+                <span className="mx-2 h-2.5 w-2.5 rotate-45 bg-white" />
+                <span className="h-px flex-1 bg-white/35" />
+              </div>
+              <div className="max-w-[9.5rem] text-end">
+                <p className="text-lg font-semibold">{c.demand}</p>
+                <p className="mt-2 text-sm leading-6 text-white/60">{c.demandText}</p>
+              </div>
             </div>
+            <div className="mt-12">
+              <BrandWordmark invert size="md" />
+            </div>
+            <p className="mt-3 text-sm text-white/55">{c.brandLine}</p>
+            <p className="mt-6 max-w-sm text-sm leading-6 text-white/45">{c.intelligenceText}</p>
           </div>
         </div>
       </section>
@@ -195,14 +210,10 @@ export default function LandingPage() {
       <section className="border-y border-[#E3DFE8] bg-white dark:border-white/10 dark:bg-[#211A2D]">
         <div className="mx-auto max-w-7xl px-5 py-24 sm:px-8 lg:px-10">
           <h2 className="max-w-3xl text-4xl font-black sm:text-5xl">{c.howTitle}</h2>
-          <div className="mt-12 grid gap-10 md:grid-cols-3">
-            {steps.map(({ icon: Icon, title, text }, index) => (
-              <div key={title}>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-bold text-[#897C99]">0{index + 1}</span>
-                  <Icon className="h-6 w-6 text-[#2F2446] dark:text-white" />
-                </div>
-                <h3 className="mt-6 text-2xl font-bold">{title}</h3>
+          <div className="mt-16 max-w-2xl space-y-10">
+            {steps.map(({ title, text }) => (
+              <div key={title} className="border-s border-[#DED9E5] ps-6 dark:border-white/15">
+                <h3 className="text-2xl font-bold">{title}</h3>
                 <p className="mt-3 leading-7 text-[#6C6377] dark:text-white/60">{text}</p>
               </div>
             ))}
