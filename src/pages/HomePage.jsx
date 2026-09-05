@@ -7,7 +7,7 @@ import {
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
-import ProductRailSection from '../components/shop/ProductRailSection.jsx';
+// LEGACY homepage rails: import ProductRailSection from '../components/shop/ProductRailSection.jsx';
 import { fetchMyPriceRequests, fetchProductById } from '../services/api.js';
 import useLiveProductCatalog from '../hooks/useLiveProductCatalog.js';
 import ProductCard from '../components/product/ProductCard.jsx';
@@ -31,7 +31,7 @@ import {
   // LEGACY B2C ranking: sortProductsByPriceDecay,
   sortByPrice,
 } from '../utils/productFeedFilters.js';
-import { bestSellers, newArrivals } from '../utils/shopProductDisplay.js';
+// LEGACY homepage rails: import { bestSellers, newArrivals } from '../utils/shopProductDisplay.js';
 import { SORT_SELECT_CLASS } from '../design/shopTokens.js';
 import { usePlatformConfig } from '../contexts/PlatformConfigContext.jsx';
 import {
@@ -272,7 +272,7 @@ export default function HomePage() {
     [filtered, acceptedOfferProductIds],
   );
 
-  /** Catalog slice for Best Sellers / New Arrivals rails (matches mobile `_buildCatalogProducts`). */
+  /* LEGACY: Best Sellers / New Arrivals rails (matches mobile `_buildCatalogProducts`).
   const catalogForCarousels = useMemo(() => {
     let list = filterInStock(products);
     // LEGACY: list = excludePackageProducts(list);
@@ -293,6 +293,7 @@ export default function HomePage() {
     () => newArrivals(catalogForCarousels, { limit: 10 }),
     [catalogForCarousels],
   );
+  */
 
   const visibleGridCount =
     acceptedOffersVisible.length + filteredForGrid.length;
@@ -628,6 +629,7 @@ export default function HomePage() {
 
             {!q && !loading ? (
               <>
+                {/* LEGACY: Best Sellers / New Arrivals rails
                 <ProductRailSection
                   title={t('shopBestSellers')}
                   subtitle={t('shopBestSellersSub')}
@@ -640,6 +642,7 @@ export default function HomePage() {
                   products={newArrivalProducts}
                   deliveryIsFree={deliveryIsFree}
                 />
+                */}
                 <div className="mb-4 px-0.5">
                   <h2 className="section-title">{t('homeTabNewProducts')}</h2>
                   <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">

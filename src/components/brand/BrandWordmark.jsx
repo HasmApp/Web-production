@@ -14,7 +14,7 @@ const SIZE_EN = {
   xl: 'text-3xl sm:text-4xl',
 };
 
-/** Arabic wordmark uses Serif Display. English matches content (Thmanyah Sans). */
+/** Arabic wordmark uses Thmanyah Sans (خط ثمانية الرقمي). English matches content. */
 export default function BrandWordmark({ invert = false, size = 'md', className = '' }) {
   const { t, lang } = useLanguage();
   const isEn = lang === 'en';

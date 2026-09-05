@@ -153,8 +153,9 @@ export default function ProductCard({
           </p>
         ) : null}
         {seller ? (
-          <p className="flex items-center gap-1 truncate text-xs text-gray-500 dark:text-gray-400" dir="auto">
-            <Building2 className="h-3 w-3 shrink-0" aria-hidden /> {seller}
+          <p className="flex w-full items-center justify-start gap-1 truncate text-xs text-gray-500 dark:text-gray-400">
+            <Building2 className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="truncate">{seller}</span>
           </p>
         ) : null}
         {pickupOnly ? (

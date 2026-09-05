@@ -29,7 +29,7 @@ export default {
       },
       fontFamily: {
         sans: ['Thmanyah Sans', 'Tajawal', 'system-ui', 'sans-serif'],
-        display: ['Thmanyah Serif Display', 'Tajawal', 'serif'],
+        display: ['Thmanyah Sans', 'Tajawal', 'sans-serif'],
       },
       animation: {
         'price-drop': 'priceDrop 0.4s ease-out',

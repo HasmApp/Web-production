@@ -4,8 +4,9 @@
 
 /*
  * HASM typography
- * Body/UI: Thmanyah Sans in both languages.
- * Headings: Arabic uses Thmanyah Serif Display; English uses Thmanyah Sans.
+ * Body/UI and Arabic text: Thmanyah Sans (خط ثمانية الرقمي).
+ * LEGACY: Arabic headings used Thmanyah Serif Display.
+ * English headings use Thmanyah Sans.
  */
 @font-face {
   font-family: 'Thmanyah Sans';
@@ -76,7 +77,8 @@
     --primary: #2F2446;
     --primary-light: #E8E4EE;
     --font-ui: 'Thmanyah Sans', 'Tajawal', system-ui, sans-serif;
-    --font-heading-ar: 'Thmanyah Serif Display', 'Tajawal', serif;
+    /* LEGACY: --font-heading-ar: 'Thmanyah Serif Display', 'Tajawal', serif; */
+    --font-heading-ar: 'Thmanyah Sans', 'Tajawal', sans-serif;
     --font-heading-en: 'Thmanyah Sans', 'Inter', system-ui, sans-serif;
   }
 
@@ -106,7 +108,8 @@
   }
 
   .brand-wordmark {
-    font-family: 'Thmanyah Serif Display', serif;
+    /* LEGACY: font-family: 'Thmanyah Serif Display', serif; */
+    font-family: 'Thmanyah Sans', sans-serif;
     font-weight: 900;
     letter-spacing: -0.02em;
     line-height: 1;
