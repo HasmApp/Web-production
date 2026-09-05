@@ -38,6 +38,7 @@ export default function Footer() {
 
   const shopLinks = [
     { labelKey: 'footerCategoryAll', to: '/marketplace' },
+    { labelKey: 'shopNavDemand', to: '/demand' },
   ];
 
   const accountLinks = [

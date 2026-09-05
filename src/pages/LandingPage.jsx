@@ -21,6 +21,7 @@ const COPY = {
     intro:
       'HASM connects inventory supply with verified business demand, then routes every opportunity through the right public, private, or recovery channel.',
     browse: 'Browse the marketplace',
+    requestStock: 'Request stock',
     company: 'List company inventory',
     trust: 'Built for companies managing real inventory',
     brandMark: 'HASM',
@@ -58,6 +59,7 @@ const COPY = {
     intro:
       'تربط حسم بين المعروض من المخزون واحتياجات الشركات الموثوقة، ثم توجه كل فرصة عبر القناة العامة أو الخاصة أو مسار الاسترداد الأنسب.',
     browse: 'استعرض السوق',
+    requestStock: 'طلب مخزون',
     company: 'أضف مخزون شركتك',
     trust: 'مصممة للشركات التي تدير مخزونًا حقيقيًا',
     brandMark: 'حسم',
@@ -154,6 +156,12 @@ export default function LandingPage() {
                 {c.browse}
                 <Arrow className="h-4 w-4" />
               </Link>
+              <Link
+                to="/demand"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-6 py-3.5 font-semibold text-white transition hover:bg-white/10"
+              >
+                {c.requestStock}
+              </Link>
               <a
                 href="https://dashboard.hasm.io"
                 className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-6 py-3.5 font-semibold text-white transition hover:bg-white/10"
@@ -176,10 +184,10 @@ export default function LandingPage() {
                 <span className="mx-2 h-2.5 w-2.5 rotate-45 bg-white" />
                 <span className="h-px flex-1 bg-white/35" />
               </div>
-              <div className="max-w-[9.5rem] text-end">
+              <Link to="/demand" className="max-w-[9.5rem] text-end text-inherit no-underline">
                 <p className="text-lg font-semibold">{c.demand}</p>
                 <p className="mt-2 text-sm leading-6 text-white/60">{c.demandText}</p>
-              </div>
+              </Link>
             </div>
             <div className="mt-12">
               <BrandWordmark invert size="md" />

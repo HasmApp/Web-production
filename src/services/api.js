@@ -46,6 +46,9 @@ api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config;
+    if (err.response?.status === 401 && original.skipAuthRedirect) {
+      return Promise.reject(err);
+    }
     if (err.response?.status === 401 && !original._retry) {
       original._retry = true;
       if (!refreshing) {
@@ -71,7 +74,7 @@ api.interceptors.response.use(
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-const normalizePhone = (phone) => {
+export const normalizePhone = (phone) => {
   phone = phone.trim().replace(/\D/g, '');
   if (phone.startsWith('0')) return '+966' + phone.slice(1);
   if (phone.startsWith('5')) return '+966' + phone;
@@ -205,14 +208,15 @@ export const validateCart = async (items) => {
 
 // ─── Price Requests ───────────────────────────────────────────────────────────
 
-export const createPriceRequest = async ({ product_id, seller_id, quantity, offered_price, message }) => {
+export const createPriceRequest = async ({ product_id, seller_id, quantity, offered_price, message, contact_phone }) => {
   const res = await api.post('/orders/price-requests/', {
     product_id,
     seller_id,
     quantity,
     offered_price,
     ...(message ? { message } : {}),
-  });
+    ...(contact_phone ? { contact_phone } : {}),
+  }, { skipAuthRedirect: true });
   return res.data;
 };
 
@@ -466,7 +470,7 @@ export const trackShipment = async (orderId) => {
 };
 
 export const createDemand = async (payload) => {
-  const res = await api.post('/demand', payload);
+  const res = await api.post('/demand', payload, { skipAuthRedirect: true });
   return res.data;
 };
 

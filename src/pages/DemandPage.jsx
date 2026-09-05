@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
-import { createDemand, getMyDemand } from '../services/api.js';
+import { createDemand, getMyDemand, normalizePhone } from '../services/api.js';
 
 const INITIAL = {
   free_text: '',
@@ -14,14 +14,14 @@ const INITIAL = {
   target_price: '',
   company_name: '',
   contact: '',
+  contact_phone: '',
 };
 
 const listFrom = (data) => data?.items || data?.demands || data?.results || (Array.isArray(data) ? data : []);
 
 export default function DemandPage() {
-  const { isAuthenticated, loading: authLoading, user } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { t, lang } = useLanguage();
-  const location = useLocation();
   const [form, setForm] = useState(INITIAL);
   const [items, setItems] = useState([]);
   const [error, setError] = useState('');
@@ -42,14 +42,20 @@ export default function DemandPage() {
   }, [isAuthenticated, saved]);
 
   useEffect(() => {
+    if (form.contact_phone || !user?.phone) return;
+    setForm((current) => ({ ...current, contact_phone: user.phone }));
+  }, [user, form.contact_phone]);
+
+  useEffect(() => {
     if (!form.company_name && user?.company_name) {
       setForm((current) => ({ ...current, company_name: user.company_name }));
     }
   }, [user, form.company_name]);
 
-  if (!authLoading && !isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
+  // LEGACY: demand required an account. Guests can submit with a mobile number.
+  // if (!authLoading && !isAuthenticated) {
+  //   return <Navigate to="/login" replace state={{ from: location }} />;
+  // }
 
   const onChange = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -64,9 +70,14 @@ export default function DemandPage() {
       setError(t('demandRequired'));
       return;
     }
+    const phone = form.contact_phone.trim() ? normalizePhone(form.contact_phone) : '';
+    if (!phone || phone.replace(/\D/g, '').length < 9) {
+      setError(t('phoneRequired'));
+      return;
+    }
     setBusy(true);
     try {
-      await createDemand({
+      const created = await createDemand({
         title: form.title.trim() || form.free_text.trim().slice(0, 80),
         free_text: form.free_text.trim(),
         quantity: form.quantity ? Number(form.quantity) : null,
@@ -78,10 +89,12 @@ export default function DemandPage() {
         currency: 'SAR',
         company_name: form.company_name.trim() || null,
         contact: form.contact.trim() || null,
+        contact_phone: phone,
         visibility: 'private',
         category: 'Food',
       });
-      setForm({ ...INITIAL, company_name: form.company_name });
+      if (created) setItems((current) => [created, ...current]);
+      setForm({ ...INITIAL, company_name: form.company_name, contact_phone: phone });
       setSaved(true);
     } catch (requestError) {
       setError(requestError?.response?.data?.detail || requestError.message);
@@ -132,6 +145,7 @@ export default function DemandPage() {
           {field('target_price', t('demandTargetPrice'), { type: 'number', min: '0', step: '0.01' })}
           {field('company_name', t('demandCompany'))}
           {field('contact', t('demandContact'))}
+          {field('contact_phone', t('phoneNumber'), { type: 'tel', inputMode: 'tel', placeholder: t('phoneExamplePlaceholder'), required: true, dir: 'ltr' })}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" className="btn-primary" disabled={busy}>

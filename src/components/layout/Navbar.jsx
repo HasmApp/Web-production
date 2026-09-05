@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, Heart, Package, User, Menu, X,
-  Sun, Moon, Search, Bell, LogOut, Settings, Home, TrendingDown, Languages,
+  Sun, Moon, Search, Bell, LogOut, Settings, Home, TrendingDown, Languages, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { useCart } from '../../contexts/CartContext.jsx';
@@ -12,6 +12,7 @@ import BrandWordmark from '../brand/BrandWordmark.jsx';
 const navLinks = [
   { to: '/', labelKey: 'home', icon: Home },
   { to: '/marketplace', labelKey: 'shopNavDeals', icon: TrendingDown },
+  { to: '/demand', labelKey: 'shopNavDemand', icon: ClipboardList },
   { to: '/orders', labelKey: 'orders', icon: Package },
   { to: '/favorites', labelKey: 'favorites', icon: Heart },
 ];

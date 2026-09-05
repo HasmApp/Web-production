@@ -14,6 +14,7 @@ import {
   deleteAlert,
   createPriceRequest,
   fetchMyPriceRequests,
+  normalizePhone,
   resolveMediaUrl,
 } from '../services/api.js';
 import ProductRailSection from '../components/shop/ProductRailSection.jsx';
@@ -120,7 +121,7 @@ export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { lang, t, tf } = useLanguage();
   const { flags } = usePlatformConfig();
 
@@ -137,6 +138,7 @@ export default function ProductPage() {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [offerPrice, setOfferPrice] = useState('');
   const [offerMessage, setOfferMessage] = useState('');
+  const [offerPhone, setOfferPhone] = useState('');
   const [submittingOffer, setSubmittingOffer] = useState(false);
   /** Live unit price (WS + resume refresh; seeded on page open). */
   const [lockedPrice, setLockedPrice] = useState(null);
@@ -341,13 +343,15 @@ export default function ProductPage() {
   */
 
   const openOfferModal = () => {
-    if (!isAuthenticated) {
-      toast.error(t('loginPriceRequest'));
-      navigate('/login');
-      return;
-    }
+    // LEGACY: guests can submit an offer with a mobile number.
+    // if (!isAuthenticated) {
+    //   toast.error(t('loginPriceRequest'));
+    //   navigate('/login');
+    //   return;
+    // }
     setOfferPrice('');
     setOfferMessage('');
+    setOfferPhone(user?.phone || '');
     setShowOfferModal(true);
   };
 
@@ -374,6 +378,11 @@ export default function ProductPage() {
       toast.error(t('priceRequestUnavailable'));
       return;
     }
+    const phone = offerPhone.trim() ? normalizePhone(offerPhone) : '';
+    if (!phone || phone.replace(/\D/g, '').length < 9) {
+      toast.error(t('phoneRequired'));
+      return;
+    }
     try {
       setSubmittingOffer(true);
       await createPriceRequest({
@@ -382,6 +391,7 @@ export default function ProductPage() {
         quantity: qty,
         offered_price: offered,
         message: offerMessage.trim() || undefined,
+        contact_phone: phone,
       });
       toast.success(t('priceRequestSent'));
       setShowOfferModal(false);
@@ -827,6 +837,20 @@ export default function ProductPage() {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('offerPriceIsTotal')}
             </p>
+            <label htmlFor="b2b-offer-phone" className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('phoneNumber')}
+            </label>
+            <input
+              id="b2b-offer-phone"
+              type="tel"
+              inputMode="tel"
+              dir="ltr"
+              value={offerPhone}
+              onChange={(e) => setOfferPhone(e.target.value)}
+              placeholder={t('phoneExamplePlaceholder')}
+              className="input mt-1 w-full py-2 text-sm"
+              required
+            />
             <p className="mt-3 text-xs font-medium text-amber-800 dark:text-amber-200" dir="auto">
               {t('packageOfferPublicNote')}
             </p>

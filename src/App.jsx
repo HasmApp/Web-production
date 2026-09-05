@@ -45,9 +45,7 @@ function AppRoutes() {
       <Route path="/" element={<Layout><LandingPage /></Layout>} />
       <Route path="/marketplace" element={<Layout><HomePage /></Layout>} />
       <Route path="/demand" element={
-        <ProtectedRoute>
-          <Layout><DemandPage /></Layout>
-        </ProtectedRoute>
+        <Layout><DemandPage /></Layout>
       } />
       {/* LEGACY aliases retained and redirected to the open marketplace. */}
       <Route path="/packages" element={<Navigate to="/marketplace" replace />} />

@@ -627,6 +627,14 @@ export default function HomePage() {
               onOpenAuctionRoom={setOpenAuctionRoomId}
             />
 
+            <Link
+              to="/demand"
+              className="mb-6 flex flex-col gap-1 rounded-xl border border-primary/20 bg-primary-50 px-4 py-3 no-underline transition hover:border-primary/40 dark:border-primary/30 dark:bg-primary-900/20"
+            >
+              <span className="text-sm font-bold text-primary">{t('shopNavDemand')}</span>
+              <span className="text-xs text-gray-600 dark:text-gray-300">{t('demandPageHelp')}</span>
+            </Link>
+
             {!q && !loading ? (
               <>
                 {/* LEGACY: Best Sellers / New Arrivals rails
