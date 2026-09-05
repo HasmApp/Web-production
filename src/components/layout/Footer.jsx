@@ -43,7 +43,7 @@ export default function Footer() {
   const accountLinks = [
     { labelKey: 'orders', to: '/orders' },
     { labelKey: 'favorites', to: '/favorites' },
-    { labelKey: 'shopNavDeals', to: '/deals' },
+    { labelKey: 'shopNavDeals', to: '/marketplace' },
     { labelKey: 'profile', to: '/profile' },
   ];
 

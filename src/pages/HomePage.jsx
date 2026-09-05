@@ -132,7 +132,7 @@ export default function HomePage() {
     document.title = t('marketplaceDocumentTitle');
     document.querySelector('meta[name="description"]')
       ?.setAttribute('content', t('marketplaceMetaDescription'));
-  }, [lang]);
+  }, [lang, t]);
 
   const selectCategory = (id) => {
     setCategory(id);
@@ -416,7 +416,7 @@ export default function HomePage() {
                   {t('shopNow')}
                 </a>
                 <Link
-                  to="/deals"
+                  to="/marketplace"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-white/40 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:border-white/60 hover:bg-white/15 sm:px-7 sm:text-base"
                 >
                   <TrendingDown className="h-5 w-5 shrink-0" />

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useLayoutEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 const LanguageContext = createContext(null);
 
@@ -422,8 +423,19 @@ const translations = {
     catLifestyle: 'Life Style',
     catConstruction: 'Construction',
     catElectronics: 'Electronics',
-    brandName: 'Hasm',
-    documentTitle: 'Hasm — Dynamic pricing marketplace',
+    brandName: 'HASM',
+    documentTitle: 'HASM | B2B Inventory Intelligence',
+    marketplaceDocumentTitle: 'HASM | Marketplace',
+    marketplaceMetaDescription: 'Browse approved public B2B inventory on HASM.',
+    demandDocumentTitle: 'HASM | Request stock',
+    loginDocumentTitle: 'HASM | Log In',
+    registerDocumentTitle: 'HASM | Create account',
+    otpDocumentTitle: 'HASM | Verification',
+    ordersDocumentTitle: 'HASM | My Orders',
+    favoritesDocumentTitle: 'HASM | Favorites',
+    cartDocumentTitle: 'HASM | Cart',
+    profileDocumentTitle: 'HASM | Profile',
+    checkoutDocumentTitle: 'HASM | Checkout',
     subOther: 'Other',
     subBedding: 'Bedding',
     subHomeEssentials: 'Home Essentials',
@@ -1019,7 +1031,18 @@ const translations = {
     catConstruction: 'البناء',
     catElectronics: 'إلكترونيات',
     brandName: 'حسم',
-    documentTitle: 'حسم — سوق التسعير الديناميكي',
+    documentTitle: 'حسم | ذكاء المخزون وسوق الأعمال',
+    marketplaceDocumentTitle: 'حسم | السوق',
+    marketplaceMetaDescription: 'استعرض مخزون الأعمال المعتمد للعرض العام في سوق حسم.',
+    demandDocumentTitle: 'حسم | طلب مخزون',
+    loginDocumentTitle: 'حسم | تسجيل الدخول',
+    registerDocumentTitle: 'حسم | إنشاء حساب',
+    otpDocumentTitle: 'حسم | التحقق',
+    ordersDocumentTitle: 'حسم | طلباتي',
+    favoritesDocumentTitle: 'حسم | المفضلة',
+    cartDocumentTitle: 'حسم | السلة',
+    profileDocumentTitle: 'حسم | الملف الشخصي',
+    checkoutDocumentTitle: 'حسم | إتمام الطلب',
     subOther: 'أخرى',
     subBedding: 'مفارش',
     subHomeEssentials: 'لوازم منزلية',
@@ -1203,7 +1226,22 @@ function interpolate(str, vars) {
   return str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : `{${k}}`));
 }
 
+function titleKeyForPath(pathname) {
+  if (pathname.startsWith('/marketplace')) return 'marketplaceDocumentTitle';
+  if (pathname.startsWith('/demand')) return 'demandDocumentTitle';
+  if (pathname.startsWith('/login')) return 'loginDocumentTitle';
+  if (pathname.startsWith('/register')) return 'registerDocumentTitle';
+  if (pathname.startsWith('/otp')) return 'otpDocumentTitle';
+  if (pathname.startsWith('/checkout')) return 'checkoutDocumentTitle';
+  if (pathname.startsWith('/orders')) return 'ordersDocumentTitle';
+  if (pathname.startsWith('/favorites')) return 'favoritesDocumentTitle';
+  if (pathname.startsWith('/cart')) return 'cartDocumentTitle';
+  if (pathname.startsWith('/profile')) return 'profileDocumentTitle';
+  return 'documentTitle';
+}
+
 export function LanguageProvider({ children }) {
+  const { pathname } = useLocation();
   const [lang, setLang] = useState(() => localStorage.getItem('hasm_lang') || 'ar');
 
   useLayoutEffect(() => {
@@ -1212,15 +1250,16 @@ export function LanguageProvider({ children }) {
     } catch (_) {}
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
+    const titleKey = titleKeyForPath(pathname);
     const title =
-      translations[lang]?.documentTitle ??
-      translations.ar.documentTitle ??
-      translations.en.documentTitle;
+      translations[lang]?.[titleKey] ||
+      translations[lang]?.documentTitle ||
+      translations.ar.documentTitle;
     if (title) document.title = title;
     const metaDesc =
       lang === 'ar'
-        ? 'حسم — سوق أعمال للمخزون الفائض والكميات الكاملة.'
-        : 'Hasm — a business marketplace for surplus and full-lot inventory.';
+        ? 'منصة حسم لربط مخزون الشركات بالطلب الموثوق والقناة المناسبة.'
+        : 'HASM connects business inventory with verified demand and the right channel.';
     let meta = document.querySelector('meta[name="description"]');
     if (!meta) {
       meta = document.createElement('meta');
@@ -1228,7 +1267,7 @@ export function LanguageProvider({ children }) {
       document.head.appendChild(meta);
     }
     meta.setAttribute('content', metaDesc);
-  }, [lang]);
+  }, [lang, pathname]);
 
   const resolve = (key) =>
     translations[lang]?.[key] ??

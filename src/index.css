@@ -73,8 +73,8 @@
 
 @layer base {
   :root {
-    --primary: #6D47FF;
-    --primary-light: #E4DCFF;
+    --primary: #2F2446;
+    --primary-light: #E8E4EE;
     --font-ui: 'Thmanyah Sans', 'Tajawal', system-ui, sans-serif;
     --font-heading-ar: 'Thmanyah Serif Display', 'Tajawal', serif;
     --font-heading-en: 'Thmanyah Sans', 'Inter', system-ui, sans-serif;
@@ -143,11 +143,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #C4B5FD;
+    background: #A89BB8;
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #6D47FF;
+    background: #2F2446;
   }
 }
 

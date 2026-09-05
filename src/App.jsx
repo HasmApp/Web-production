@@ -9,7 +9,6 @@ import { PlatformConfigProvider } from './contexts/PlatformConfigContext.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import DemandPage from './pages/DemandPage.jsx';
-import DealsPage from './pages/DealsPage.jsx';
 import ProductPage from './pages/ProductPage.jsx';
 import CartPage from './pages/CartPage.jsx';
 import CheckoutPage from './pages/CheckoutPage.jsx';
@@ -55,7 +54,8 @@ function AppRoutes() {
       <Route path="/package" element={<Navigate to="/marketplace" replace />} />
       <Route path="/pakage" element={<Navigate to="/marketplace" replace />} />
       <Route path="/packages/product/:id" element={<Navigate to="/marketplace" replace />} />
-      <Route path="/deals" element={<Layout><DealsPage /></Layout>} />
+      {/* LEGACY: old deals URL now opens the marketplace. */}
+      <Route path="/deals" element={<Navigate to="/marketplace" replace />} />
       <Route path="/product/:id" element={<Layout><ProductPage /></Layout>} />
       <Route path="/cart" element={<Layout><CartPage /></Layout>} />
       <Route path="/auctions" element={<Navigate to="/marketplace" replace />} />

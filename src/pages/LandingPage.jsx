@@ -97,14 +97,13 @@ export default function LandingPage() {
   const Arrow = lang === 'ar' ? ArrowLeft : ArrowRight;
 
   useEffect(() => {
-    document.title =
-      lang === 'ar'
-        ? 'حسم | ذكاء المخزون وسوق الأعمال'
-        : 'HASM | B2B Inventory Intelligence';
+    document.title = lang === 'ar'
+      ? 'حسم | ذكاء المخزون وسوق الأعمال'
+      : 'HASM | B2B Inventory Intelligence';
     const description =
       lang === 'ar'
-        ? 'منصة حسم لربط مخزون الشركات بالطلب الموثوق وقنوات التصفية المناسبة.'
-        : 'HASM connects business inventory with verified demand and the right liquidation channel.';
+        ? 'منصة حسم لربط مخزون الشركات بالطلب الموثوق والقناة المناسبة.'
+        : 'HASM connects business inventory with verified demand and the right channel.';
     document.querySelector('meta[name="description"]')?.setAttribute('content', description);
   }, [lang]);
 

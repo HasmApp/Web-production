@@ -11,7 +11,7 @@ import BrandWordmark from '../brand/BrandWordmark.jsx';
 
 const navLinks = [
   { to: '/', labelKey: 'home', icon: Home },
-  { to: '/deals', labelKey: 'shopNavDeals', icon: TrendingDown },
+  { to: '/marketplace', labelKey: 'shopNavDeals', icon: TrendingDown },
   { to: '/orders', labelKey: 'orders', icon: Package },
   { to: '/favorites', labelKey: 'favorites', icon: Heart },
 ];

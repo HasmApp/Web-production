@@ -29,8 +29,8 @@ export default function DemandPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    document.title = lang === 'ar' ? 'حسم | طلب مخزون' : 'HASM | Request stock';
-  }, [lang]);
+    document.title = t('demandDocumentTitle');
+  }, [lang, t]);
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;
