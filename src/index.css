@@ -2,10 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * HASM typography
+ * Body/UI: Thmanyah Sans in both languages.
+ * Headings: Arabic uses Thmanyah Serif Display; English uses Thmanyah Sans.
+ */
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyah/thmanyahsans-Bold.woff2') format('woff2');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyah/thmanyahsans-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Bold.woff2') format('woff2');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
     --primary: #6D47FF;
     --primary-light: #E4DCFF;
+    --font-ui: 'Thmanyah Sans', 'Tajawal', system-ui, sans-serif;
+    --font-heading-ar: 'Thmanyah Serif Display', 'Tajawal', serif;
+    --font-heading-en: 'Thmanyah Sans', 'Inter', system-ui, sans-serif;
   }
 
   * {
@@ -16,14 +88,21 @@
     scroll-behavior: smooth;
   }
 
-  /* RTL / LTR typography */
-  [dir="rtl"] {
-    font-family: 'Tajawal', system-ui, sans-serif;
+  html,
+  body,
+  button,
+  input,
+  textarea,
+  select {
+    font-family: var(--font-ui);
   }
 
-  /* Inter for Latin; Tajawal must follow so Arabic snippets (e.g. city names on EN checkout) match RTL UI. */
-  [dir="ltr"] {
-    font-family: 'Inter', 'Tajawal', system-ui, sans-serif;
+  [lang="ar"] :is(h1, h2, h3, h4, h5, h6, .section-title) {
+    font-family: var(--font-heading-ar);
+  }
+
+  [lang="en"] :is(h1, h2, h3, h4, h5, h6, .section-title) {
+    font-family: var(--font-heading-en);
   }
 
   /* Riyal + amount: keep numeric order correct in RTL (same idea as dashboard). */

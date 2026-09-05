@@ -28,7 +28,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'Tajawal', 'system-ui', 'sans-serif'],
+        sans: ['Thmanyah Sans', 'Tajawal', 'system-ui', 'sans-serif'],
+        display: ['Thmanyah Serif Display', 'Tajawal', 'serif'],
       },
       animation: {
         'price-drop': 'priceDrop 0.4s ease-out',
