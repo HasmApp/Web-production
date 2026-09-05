@@ -239,5 +239,6 @@ export function cartItemFromProduct(product, quantity, stockLabel = 'Full', size
     price,
     ownerId: supplierKeyForProduct(product),
     pickupOnly: isPickupOnlyProduct(product),
+    offerLocked: Boolean(product?._offerLocked),
   };
 }

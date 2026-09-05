@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Heart, ShoppingCart, ChevronLeft, ChevronDown, Bell, X,
+  Heart, ShoppingCart, ChevronLeft, ChevronDown, X,
   Package, Truck, Shield, Star, Minus, Plus, Warehouse, Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -12,19 +12,23 @@ import {
   updateAlert,
   fetchAlerts,
   deleteAlert,
+  createPriceRequest,
+  fetchMyPriceRequests,
   resolveMediaUrl,
 } from '../services/api.js';
 import ProductRailSection from '../components/shop/ProductRailSection.jsx';
 import { useCart } from '../contexts/CartContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { savePendingCheckoutGroup } from '../utils/supplierCart.js';
+// LEGACY retail checkout helper — marketplace now goes to cart after an approved offer.
+// import { savePendingCheckoutGroup } from '../utils/supplierCart.js';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
-import useProductLivePrice from '../hooks/useProductLivePrice.js';
+// LEGACY retail live price — marketplace is B2B offer-based now.
+// import useProductLivePrice from '../hooks/useProductLivePrice.js';
 import SarAmount from '../components/common/SarAmount.jsx';
 import { formatProductCategory } from '../utils/formatProductCategory.js';
 import { tamaraArUrl, tamaraEnUrl } from '../assets/branding.js';
-import { isPickupOnlyProduct, isBundlePackageProduct } from '../utils/productFlags.js';
+import { isPickupOnlyProduct } from '../utils/productFlags.js';
 import { maxSelectableQuantity } from '../utils/cartQuantityLimits.js';
 import {
   defaultSizeOption,
@@ -40,6 +44,7 @@ import {
 } from '../utils/foodProductDisplay.js';
 import { usePlatformConfig } from '../contexts/PlatformConfigContext.jsx';
 import {
+  productAvailableQuantity,
   productCondition,
   productCountry,
   productCurrency,
@@ -48,7 +53,7 @@ import {
   productMoq,
   productSeller,
   productUnit,
-  requiredPurchaseQuantity,
+  sellerIdFromProduct,
 } from '../utils/b2bProduct.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
@@ -114,12 +119,13 @@ const sanitizeOfferedPriceInput = (raw) => {
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { purchaseForCheckout } = useCart();
+  const { addItem } = useCart();
   const { isAuthenticated } = useAuth();
   const { lang, t, tf } = useLanguage();
   const { flags } = usePlatformConfig();
 
   const [product, setProduct] = useState(null);
+  const [approvedOffer, setApprovedOffer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedImg, setSelectedImg] = useState(0);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
@@ -128,6 +134,10 @@ export default function ProductPage() {
   const [alert, setAlert] = useState(null);
   const [alertPrice, setAlertPrice] = useState('');
   const [showAlertModal, setShowAlertModal] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [offerPrice, setOfferPrice] = useState('');
+  const [offerMessage, setOfferMessage] = useState('');
+  const [submittingOffer, setSubmittingOffer] = useState(false);
   /** Live unit price (WS + resume refresh; seeded on page open). */
   const [lockedPrice, setLockedPrice] = useState(null);
   /** Full catalog, used to build the "More from this supplier" rail. */
@@ -163,14 +173,30 @@ export default function ProductPage() {
         setLockedPrice(Number.isFinite(snap) ? snap : 0);
         const initialSize = hasSizeQuantities(data) ? defaultSizeOption(data) : null;
         setSelectedSize(initialSize);
-        const maxQty = maxSelectableQuantity(data, initialSize);
-        setSelectedQuantity(requiredPurchaseQuantity(data, productMoq(data), flags.perPiece, initialSize) || 1);
+        const stock = maxSelectableQuantity(data, initialSize);
+        const moqQty = Math.max(1, productMoq(data));
+        setSelectedQuantity(Math.min(stock || moqQty, moqQty));
         const favs = getFavorites();
         setIsFav(favs.includes(data._id));
-        if (isAuthenticated) {
+        const productId = String(data._id ?? data.id ?? '');
+        if (isAuthenticated && productId) {
+          try {
+            const mine = await fetchMyPriceRequests();
+            const approved = (Array.isArray(mine) ? mine : []).find(
+              (row) =>
+                String(row.product_id ?? '') === productId
+                && String(row.status || '').toLowerCase() === 'approved'
+                && Number(row.offered_price) > 0,
+            );
+            setApprovedOffer(approved || null);
+          } catch {
+            setApprovedOffer(null);
+          }
           const alerts = await fetchAlerts();
           const existing = alerts.find((a) => a.product_id === data._id);
           if (existing) setAlert(existing);
+        } else {
+          setApprovedOffer(null);
         }
       } catch {
         toast.error(t('productNotFound'));
@@ -182,14 +208,15 @@ export default function ProductPage() {
     load();
   }, [id, isAuthenticated, navigate, flags.perPiece]);
 
-  useProductLivePrice(product ? id : null, (price, fresh) => {
-    setLockedPrice(price);
-    setProduct((prev) => {
-      if (!prev) return prev;
-      const base = fresh ? { ...prev, ...fresh } : prev;
-      return { ...base, current_price: price, currentPrice: price };
-    });
-  });
+  // LEGACY: live dropping price is not shown on the B2B marketplace.
+  // useProductLivePrice(product ? id : null, (price, fresh) => {
+  //   setLockedPrice(price);
+  //   setProduct((prev) => {
+  //     if (!prev) return prev;
+  //     const base = fresh ? { ...prev, ...fresh } : prev;
+  //     return { ...base, current_price: price, currentPrice: price };
+  //   });
+  // });
 
   // Load the catalog once to power the "More from this supplier" rail.
   useEffect(() => {
@@ -243,6 +270,13 @@ export default function ProductPage() {
   const currency = productCurrency(product);
   const unit = productUnit(product) || t('units');
   const moq = productMoq(product);
+  const availableQty = productAvailableQuantity(product, selectedSize);
+  const canOffer = availableQty >= moq && availableQty > 0;
+  const hasApproved = approvedOffer != null && Number(approvedOffer.offered_price) > 0;
+  const approvedTotal = hasApproved ? Number(approvedOffer.offered_price) : 0;
+  const approvedQty = hasApproved
+    ? Math.max(1, Math.floor(Number(approvedOffer.quantity) || selectedQuantity || 1))
+    : 0;
   const lifecycle = productLifecycle(product);
   const condition = productCondition(product);
   const country = productCountry(product);
@@ -258,6 +292,21 @@ export default function ProductPage() {
   };
 
   const handlePurchase = () => {
+    if (!hasApproved || approvedTotal <= 0) return;
+    const qty = Math.min(availableQty, Math.max(moq, approvedQty));
+    if (qty < 1) return;
+    const unitPrice = approvedTotal / qty;
+    addItem(
+      { ...product, current_price: unitPrice, currentPrice: unitPrice, _offerLocked: true },
+      qty,
+      'Full',
+      selectedSize,
+    );
+    navigate('/cart', { replace: true });
+  };
+
+  /* LEGACY retail purchase at live dropping price
+  const handleLivePricePurchase = () => {
     const stock = stockForSize(product, selectedSize);
     if (stock < 1) return;
     if (usesVariants && !selectedSize) {
@@ -289,13 +338,65 @@ export default function ProductPage() {
     }
     navigate('/checkout', { replace: true, state: { checkoutGroupKey: groupKey } });
   };
+  */
+
+  const openOfferModal = () => {
+    if (!isAuthenticated) {
+      toast.error(t('loginPriceRequest'));
+      navigate('/login');
+      return;
+    }
+    setOfferPrice('');
+    setOfferMessage('');
+    setShowOfferModal(true);
+  };
+
+  const clampOfferQty = (raw) => {
+    const next = Math.floor(Number(raw) || moq);
+    const min = Math.min(availableQty || moq, moq);
+    const max = availableQty > 0 ? availableQty : min;
+    return Math.min(max, Math.max(min, next));
+  };
+
+  const handleSubmitOffer = async () => {
+    const offered = parseFloat(offerPrice);
+    const qty = clampOfferQty(selectedQuantity);
+    if (!Number.isFinite(offered) || offered <= 0 || qty <= 0) {
+      toast.error(t('invalidPriceRequestValues'));
+      return;
+    }
+    if (qty < moq) {
+      toast.error(tf('offerQtyMinMoq', { n: moq, unit }));
+      return;
+    }
+    const sellerId = sellerIdFromProduct(product);
+    if (!sellerId) {
+      toast.error(t('priceRequestUnavailable'));
+      return;
+    }
+    try {
+      setSubmittingOffer(true);
+      await createPriceRequest({
+        product_id: String(product._id ?? product.id),
+        seller_id: sellerId,
+        quantity: qty,
+        offered_price: offered,
+        message: offerMessage.trim() || undefined,
+      });
+      toast.success(t('priceRequestSent'));
+      setShowOfferModal(false);
+    } catch {
+      toast.error(t('priceRequestFailed'));
+    } finally {
+      setSubmittingOffer(false);
+    }
+  };
 
   const handleSizeChange = (size) => {
     setSelectedSize(size);
     const nextMax = maxSelectableQuantity(product, size);
-    setSelectedQuantity(
-      requiredPurchaseQuantity(product, productMoq(product), flags.perPiece, size) || 1,
-    );
+    const nextMoq = Math.max(1, productMoq(product));
+    setSelectedQuantity(Math.min(nextMax || nextMoq, nextMoq));
   };
 
   const handleSetAlert = async () => {
@@ -409,21 +510,23 @@ export default function ProductPage() {
                 {tf('bySupplier', { name: b2bSeller })}
               </p>
             )}
-            {(lifecycle || condition || country || locationName) ? (
-              <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-gray-100 p-4 text-sm dark:border-gray-800">
-                {[
-                  [t('b2bLifecycle'), lifecycle],
-                  [t('b2bCondition'), condition],
-                  [t('b2bCountry'), country],
-                  [t('b2bLocation'), locationName],
-                ].filter(([, value]) => value).map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
-                    <dd className="mt-0.5 font-semibold text-gray-900 dark:text-white" dir="auto">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
+            <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-gray-100 p-4 text-sm dark:border-gray-800">
+              {[
+                [t('b2bMoq'), `${moq} ${unit}`],
+                [t('availableQuantityLabel'), `${availableQty} ${unit}`],
+                [t('b2bUnit'), productUnit(product)],
+                [t('b2bLifecycle'), lifecycle],
+                [t('b2bCondition'), condition],
+                [t('b2bCountry'), country],
+                [t('b2bLocation'), locationName],
+                [t('b2bSeller'), b2bSeller],
+              ].filter(([, value]) => value).map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
+                  <dd className="mt-0.5 font-semibold text-gray-900 dark:text-white" dir="auto">{value}</dd>
+                </div>
+              ))}
+            </dl>
             {expiryDate ? (
               <p className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Calendar className="h-4 w-4 shrink-0 text-primary" aria-hidden />
@@ -437,23 +540,7 @@ export default function ProductPage() {
             ) : null}
           </div>
 
-          {/* Price + purchase bar — matches mobile ProductPage (quantity stepper, purchase, alert only). */}
           <div className="card p-4 space-y-4 text-start">
-            <div className="flex w-full justify-start items-baseline gap-3 flex-wrap">
-              <SarAmount
-                amount={current}
-                currency={currency}
-                iconSize={26}
-                className="text-4xl font-extrabold text-primary items-baseline"
-                numberClassName="text-4xl font-extrabold text-primary"
-              />
-            </div>
-            {initial > current ? (
-              <p className="text-sm text-gray-400 line-through flex w-full justify-start items-baseline gap-1 flex-wrap">
-                <span>{t('was')}</span>
-                <SarAmount amount={initial} currency={currency} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
-              </p>
-            ) : null}
             {pickupOnly ? (
               <div className="pt-1">
                 <PickupOnlyBadge size="md" />
@@ -490,55 +577,92 @@ export default function ProductPage() {
               </div>
             ) : null}
 
-            <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-              <div className="min-w-0 flex-1 basis-[6.5rem]">
-                <p className="text-[10px] leading-tight text-gray-500 dark:text-gray-400">
-                  {flags.perPiece
-                    ? tf('totalPriceForPieces', { quantity: selectedQuantity })
-                    : tf('marketplaceFullLotLine', { n: selectedQuantity, unit })}
+            {!canOffer && availableQty > 0 ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                {tf('b2bBelowMoq', { available: availableQty, moq })}
+              </p>
+            ) : null}
+
+            {hasApproved ? (
+              <div className="space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                  {t('approvedPackagePrice')}
                 </p>
                 <SarAmount
-                  amount={totalLinePrice}
+                  amount={approvedTotal}
                   currency={currency}
-                  iconSize={16}
-                  className="text-base font-bold text-gray-900 dark:text-white"
-                  numberClassName="text-base font-bold text-gray-900 dark:text-white"
+                  iconSize={26}
+                  className="text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 items-baseline"
+                  numberClassName="text-4xl font-extrabold text-emerald-600 dark:text-emerald-400"
                 />
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {tf('offerForQuantity', { n: approvedQty, unit })}
+                </p>
               </div>
-              {flags.perPiece ? (
-              <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-gray-700 dark:bg-gray-800/80">
+            ) : (
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                {t('noApprovedPackagePrice')}
+              </p>
+            )}
+
+            <div className="space-y-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <label htmlFor="offer-quantity" className="block text-sm font-semibold text-gray-900 dark:text-white">
+                {t('offerQuantityNeeded')}
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {tf('offerQtyMinMoq', { n: moq, unit })}
+              </p>
+              <div className="flex items-center gap-1.5 w-fit rounded-xl border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-gray-700 dark:bg-gray-800/80">
                 <button
                   type="button"
-                  disabled={selectedQuantity <= Math.min(maxQty, moq) || maxQty <= 0}
-                  onClick={() => setSelectedQuantity((q) => Math.max(Math.min(maxQty, moq), q - 1))}
+                  disabled={selectedQuantity <= moq || availableQty <= 0}
+                  onClick={() => setSelectedQuantity((q) => clampOfferQty(q - 1))}
                   className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700"
                   aria-label={t('decreaseQuantity')}
                 >
                   <Minus className="h-4 w-4" />
                 </button>
-                <span className="min-w-[1.75rem] text-center text-sm font-bold tabular-nums text-gray-900 dark:text-white">
-                  {selectedQuantity}
-                </span>
+                <input
+                  id="offer-quantity"
+                  type="number"
+                  min={moq}
+                  max={stepperMax}
+                  value={selectedQuantity}
+                  onChange={(e) => setSelectedQuantity(clampOfferQty(e.target.value))}
+                  className="w-16 bg-transparent text-center text-sm font-bold tabular-nums text-gray-900 outline-none dark:text-white"
+                />
                 <button
                   type="button"
-                  disabled={selectedQuantity >= stepperMax || maxQty <= 0}
-                  onClick={() => setSelectedQuantity((q) => Math.min(stepperMax, q + 1))}
+                  disabled={selectedQuantity >= stepperMax || availableQty <= 0}
+                  onClick={() => setSelectedQuantity((q) => clampOfferQty(q + 1))}
                   className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700"
                   aria-label={t('increaseQuantity')}
                 >
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
-              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                disabled={(product.quantity ?? product.stock ?? 0) < 1}
-                onClick={handlePurchase}
-                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-950"
+                disabled={!canOffer}
+                onClick={openOfferModal}
+                className="inline-flex h-11 flex-1 min-w-[10rem] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45"
               >
-                <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
-                {t('purchase')}
+                {t('requestOfferCta')}
               </button>
+              {hasApproved ? (
+                <button
+                  type="button"
+                  disabled={!canOffer}
+                  onClick={handlePurchase}
+                  className="inline-flex h-11 flex-1 min-w-[10rem] items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-bold text-white shadow-sm transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-950"
+                >
+                  <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
+                  {t('purchase')}
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -578,6 +702,7 @@ export default function ProductPage() {
             </div>
           </div> : null}
 
+          {/* LEGACY: price-drop alerts belong to the retail live-price flow.
           <button
             type="button"
             onClick={() => {
@@ -598,6 +723,7 @@ export default function ProductPage() {
             <span className="flex-1">{alert ? t('updateAlert') : t('setAlert')}</span>
             <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 rtl:rotate-90 opacity-60" aria-hidden />
           </button>
+          */}
 
           {/* Trust badges */}
           <div className="grid grid-cols-3 gap-3 text-center">
@@ -640,6 +766,98 @@ export default function ProductPage() {
             subtitle={t('supplierOtherProducts')}
             products={supplierProducts}
           />
+        </div>
+      )}
+
+      {showOfferModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowOfferModal(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="card max-h-[90vh] w-full max-w-md overflow-y-auto p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                {t('requestOfferCta')}
+              </h3>
+              <button
+                type="button"
+                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => setShowOfferModal(false)}
+                aria-label={t('cancel')}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-800 dark:text-gray-200" dir="auto">
+              {title}
+            </p>
+            <label htmlFor="b2b-offer-qty" className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('offerQuantityNeeded')}
+            </label>
+            <input
+              id="b2b-offer-qty"
+              type="number"
+              min={moq}
+              max={stepperMax}
+              value={selectedQuantity}
+              onChange={(e) => setSelectedQuantity(clampOfferQty(e.target.value))}
+              className="input mt-1 w-full py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {tf('offerQtyMinMoq', { n: moq, unit })} · {tf('availableQuantityChip', { n: availableQty, unit })}
+            </p>
+            <label htmlFor="b2b-offer-price" className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('offeredPrice')}
+            </label>
+            <input
+              id="b2b-offer-price"
+              type="text"
+              inputMode="decimal"
+              value={offerPrice}
+              onChange={(e) => setOfferPrice(sanitizeOfferedPriceInput(e.target.value))}
+              placeholder="0.00"
+              className="input mt-1 w-full py-2 text-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t('offerPriceIsTotal')}
+            </p>
+            <p className="mt-3 text-xs font-medium text-amber-800 dark:text-amber-200" dir="auto">
+              {t('packageOfferPublicNote')}
+            </p>
+            <label htmlFor="b2b-offer-message" className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t('messageOptional')}
+            </label>
+            <textarea
+              id="b2b-offer-message"
+              value={offerMessage}
+              onChange={(e) => setOfferMessage(e.target.value)}
+              rows={3}
+              className="input mt-1 w-full resize-none py-2 text-sm"
+            />
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={submittingOffer || !canOffer}
+                onClick={handleSubmitOffer}
+                className="btn-primary min-w-[8rem] flex-1"
+              >
+                {t('sendRequest')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowOfferModal(false)}
+                className="btn-secondary min-w-[8rem] flex-1"
+              >
+                {t('cancel')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

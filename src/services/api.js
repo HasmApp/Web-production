@@ -205,9 +205,35 @@ export const validateCart = async (items) => {
 
 // ─── Price Requests ───────────────────────────────────────────────────────────
 
-export const fetchMyPriceRequests = async () => {
-  const res = await api.get('/orders/price-requests/my');
+export const createPriceRequest = async ({ product_id, seller_id, quantity, offered_price, message }) => {
+  const res = await api.post('/orders/price-requests/', {
+    product_id,
+    seller_id,
+    quantity,
+    offered_price,
+    ...(message ? { message } : {}),
+  });
   return res.data;
+};
+
+export const fetchMyPriceRequests = async () => {
+  const res = await api.get('/orders/price-requests/my', {
+    params: { include_packages: true },
+  });
+  return res.data;
+};
+
+export const fetchLatestApprovedOffers = async (productIds) => {
+  const ids = [...new Set((productIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  if (ids.length === 0) return [];
+  try {
+    const res = await api.get('/orders/price-requests/latest-approved', {
+      params: { product_ids: ids.join(',') },
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  } catch {
+    return [];
+  }
 };
 
 // ─── Sample Requests ─────────────────────────────────────────────────────────

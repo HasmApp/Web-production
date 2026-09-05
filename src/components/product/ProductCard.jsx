@@ -1,30 +1,24 @@
+// B2B marketplace card: MOQ, stock, condition, location, and offer CTA.
+// The previous live-price / add-to-cart card remains in git history
+// (src/components/product/ProductCard.jsx on hasm-platform-v2).
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Heart, Package, BadgeCheck, Truck, ArrowRight, Gavel, MapPin, Building2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Heart, Package, BadgeCheck, MapPin, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { resolveMediaUrl } from '../../services/api.js';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
+import { useCart } from '../../contexts/CartContext.jsx';
 import SarAmount from '../common/SarAmount.jsx';
 import { formatProductCategory } from '../../utils/formatProductCategory.js';
-import {
-  isPickupOnlyProduct,
-  isPromotionProduct,
-  isAuctionProduct,
-} from '../../utils/productFlags.js';
-import { FLASH_GRADIENT, LIVE_PRICE_TEXT_CLASS } from '../../design/shopTokens.js';
-import { dealDiscountPercent } from '../../utils/productFeedFilters.js';
+import { isPickupOnlyProduct } from '../../utils/productFlags.js';
 import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
-import { usePlatformConfig } from '../../contexts/PlatformConfigContext.jsx';
 import {
+  productAvailableQuantity,
   productCondition,
-  productCountry,
-  productCurrency,
-  productLifecycle,
   productLocation,
   productMoq,
   productSeller,
   productUnit,
-  requiredPurchaseQuantity,
 } from '../../utils/b2bProduct.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
@@ -38,36 +32,22 @@ export default function ProductCard({
   product,
   acceptedOffer = null,
   onAcceptedClick,
-  /** When true, show a small free-delivery tag (matches mobile when delivery fee is 0). */
-  deliveryIsFree = false,
-  /** Deals tab: show minimum price + initial strikethrough (matches mobile `dealPriceDisplay`). */
-  dealPriceDisplay = false,
+  approvedOffer = null,
 }) {
+  const navigate = useNavigate();
+  const { addItem } = useCart();
   const { lang, t, tf } = useLanguage();
-  const { flags } = usePlatformConfig();
   const isAccepted = acceptedOffer != null && typeof onAcceptedClick === 'function';
   const [isFav, setIsFav] = useState(false);
-  const [priceChanged, setPriceChanged] = useState(false);
-  const [displayPrice, setDisplayPrice] = useState(
-    product.current_price ?? product.currentPrice ?? 0
-  );
+  const publicApproved = approvedOffer != null && Number(approvedOffer.offered_price) > 0;
+  const approvedQty = Math.max(1, Math.floor(Number(approvedOffer?.quantity || acceptedOffer?.quantity || 1)));
+  const approvedTotal = Number(approvedOffer?.offered_price ?? acceptedOffer?.price ?? 0);
 
   useEffect(() => {
     const favs = getFavorites();
     setIsFav(favs.includes(product._id));
   }, [product._id]);
 
-  useEffect(() => {
-    if (isAccepted || dealPriceDisplay) return;
-    const newPrice = product.current_price ?? product.currentPrice ?? 0;
-    if (newPrice !== displayPrice) {
-      setPriceChanged(true);
-      setDisplayPrice(newPrice);
-      setTimeout(() => setPriceChanged(false), 600);
-    }
-  }, [product.current_price, product.currentPrice, isAccepted, dealPriceDisplay]);
-
-  const minimum = product.minimum_price ?? product.minimumPrice ?? 0;
   const toggleFav = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -80,12 +60,23 @@ export default function ProductCard({
     toast(isFav ? t('favRemovedToast') : t('favAddedToast'));
   };
 
-  const initial = product.initial_price ?? product.initialPrice ?? 0;
-  const offered = acceptedOffer?.price;
-  const current = offered != null
-    ? offered
-    : (dealPriceDisplay ? minimum : displayPrice);
-  const strikePrice = dealPriceDisplay ? initial : initial;
+  const handlePurchase = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isAccepted) {
+      onAcceptedClick();
+      return;
+    }
+    if (!publicApproved || approvedTotal <= 0) return;
+    const unit = approvedTotal / approvedQty;
+    addItem(
+      { ...product, current_price: unit, currentPrice: unit, _offerLocked: true },
+      approvedQty,
+      'Full',
+    );
+    navigate('/cart', { replace: true });
+  };
+
   const image = resolveMediaUrl((product.images?.[0]) || product.image || '');
   const title =
     lang === 'ar'
@@ -93,35 +84,23 @@ export default function ProductCard({
       : (product.title_en || product.titleEn || product.title || '');
   const categoryLabel = formatProductCategory(product.category || '', t);
   const pickupOnly = isPickupOnlyProduct(product);
-  const hasPromotion = isPromotionProduct(product);
-  const isLiveAuction = isAuctionProduct(product);
-  const discountPct = dealPriceDisplay && !isAccepted ? dealDiscountPercent(product) : null;
-  const hasLiveDiscount = !isAccepted && strikePrice > current;
-  const currency = productCurrency(product);
-  const unit = productUnit(product);
-  const lifecycle = productLifecycle(product);
+  const unit = productUnit(product) || t('units');
+  const moq = productMoq(product);
+  const available = productAvailableQuantity(product);
   const condition = productCondition(product);
-  const location = productLocation(product) || productCountry(product);
+  const location = productLocation(product);
   const seller = productSeller(product);
-  const requiredQuantity = requiredPurchaseQuantity(product, productMoq(product), flags.perPiece);
 
   const shellClass = `group flex flex-col min-w-0 text-start no-underline text-inherit rounded-xl bg-white dark:bg-gray-900 shadow-md transition-all duration-300 hover:opacity-[0.97] ${
-    isAccepted
+    isAccepted || publicApproved
       ? 'border-2 border-emerald-500/90 dark:border-emerald-400/80'
       : ''
   }`;
 
   const body = (
     <>
-      {/* Image — white frame + ~0.92 aspect (matches mobile ProductCard) */}
       <div className="px-2 pt-2">
-        <div
-          className={`relative w-full overflow-hidden rounded-xl bg-white aspect-[100/82] ${
-            isAccepted
-              ? 'ring-2 ring-inset ring-emerald-500/80 dark:ring-emerald-400/70'
-              : ''
-          }`}
-        >
+        <div className="relative w-full overflow-hidden rounded-xl bg-white aspect-[100/82]">
           {image ? (
             <img
               src={image}
@@ -145,141 +124,74 @@ export default function ProductCard({
           >
             <Heart className="h-4 w-4" fill={isFav ? 'currentColor' : 'none'} />
           </button>
-          {!isAccepted && hasPromotion ? (
-            <div
-              className="absolute top-3 start-3 rounded-lg px-2.5 py-1 text-[10px] font-extrabold text-white shadow-md sm:text-xs"
-              style={{ background: FLASH_GRADIENT }}
-              dir="auto"
-            >
-              {t('badgeBogoFree')}
-            </div>
-          ) : null}
-          {!isAccepted && discountPct != null ? (
-            <div
-              className="absolute bottom-3 end-3 flex min-h-[18px] items-center justify-center rounded bg-[#C05050] px-1.5 text-[10px] font-bold leading-none text-white"
-              dir="auto"
-              aria-label={tf('percentOff', { n: discountPct })}
-            >
-              {tf('badgeDealSticker', { n: discountPct })}
-            </div>
-          ) : null}
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-1 px-2 py-1.5">
+      <div className="flex flex-1 flex-col gap-1.5 px-2 py-1.5 pb-3">
         {categoryLabel ? (
-          <p className="text-sm font-semibold leading-snug text-primary mb-1" dir="auto">
+          <p className="text-sm font-semibold leading-snug text-primary mb-0.5" dir="auto">
             {categoryLabel}
           </p>
         ) : null}
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-gray-900 dark:text-white">
           {title}
         </h3>
-        {/* Quantity/stock hidden by request */}
-        <div className="mt-auto pt-1">
-          <div className="flex flex-wrap items-baseline gap-1.5">
-            <SarAmount
-              amount={current}
-              currency={currency}
-              iconSize={15}
-              className={`text-lg font-bold transition-all duration-300 ${
-                isAccepted
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : hasLiveDiscount
-                    ? `${LIVE_PRICE_TEXT_CLASS} ${priceChanged ? 'scale-110' : ''}`
-                    : `text-gray-900 dark:text-white ${priceChanged ? 'scale-110' : ''}`
-              }`}
-              numberClassName={`text-lg font-bold ${
-                isAccepted
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : hasLiveDiscount
-                    ? LIVE_PRICE_TEXT_CLASS
-                    : 'text-gray-900 dark:text-white'
-              }`}
-            />
-          </div>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {flags.perPiece
-              ? tf('marketplaceMoqLine', { n: productMoq(product), unit: unit || t('units') })
-              : tf('marketplaceFullLotLine', { n: requiredQuantity, unit: unit || t('units') })}
+        <div className="flex flex-wrap gap-1 pt-0.5 text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+          <span className="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+            {t('b2bMoq')}: {moq} {unit}
+          </span>
+          <span className="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+            {tf('availableQuantityChip', { n: available, unit })}
+          </span>
+          {condition ? (
+            <span className="rounded-md bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">{condition}</span>
+          ) : null}
+        </div>
+        {location ? (
+          <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400" dir="auto">
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden /> {location}
           </p>
-          {(lifecycle || condition) ? (
-            <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-semibold text-gray-600 dark:text-gray-300">
-              {lifecycle ? <span className="rounded bg-gray-100 px-2 py-1 dark:bg-gray-800">{lifecycle}</span> : null}
-              {condition ? <span className="rounded bg-gray-100 px-2 py-1 dark:bg-gray-800">{condition}</span> : null}
-            </div>
-          ) : null}
-          {location ? (
-            <p className="mt-1.5 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400" dir="auto">
-              <MapPin className="h-3 w-3 shrink-0" aria-hidden /> {location}
-            </p>
-          ) : null}
-          {seller ? (
-            <p className="mt-1 flex items-center gap-1 truncate text-xs text-gray-500 dark:text-gray-400" dir="auto">
-              <Building2 className="h-3 w-3 shrink-0" aria-hidden /> {seller}
-            </p>
-          ) : null}
-          {!isAccepted && strikePrice > current && (
-            <p className="mt-0.5 text-sm text-gray-400 line-through decoration-2 decoration-gray-400">
+        ) : null}
+        {seller ? (
+          <p className="flex items-center gap-1 truncate text-xs text-gray-500 dark:text-gray-400" dir="auto">
+            <Building2 className="h-3 w-3 shrink-0" aria-hidden /> {seller}
+          </p>
+        ) : null}
+        {pickupOnly ? (
+          <div className="pt-0.5">
+            <PickupOnlyBadge size="sm" />
+          </div>
+        ) : null}
+
+        <div className="mt-auto space-y-2 pt-2">
+          {(isAccepted || publicApproved) && approvedTotal > 0 ? (
+            <div className="space-y-1">
+              <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                <BadgeCheck className="h-3 w-3" />
+                {t('approvedPackagePrice')}
+              </p>
               <SarAmount
-                amount={strikePrice}
-                currency={currency}
-                iconSize={13}
-                className="text-sm text-gray-400 line-through decoration-2 decoration-gray-400"
-                numberClassName="text-gray-400 line-through decoration-2 decoration-gray-400"
+                amount={approvedTotal}
+                iconSize={15}
+                className="text-lg font-bold text-emerald-600 dark:text-emerald-400"
+                numberClassName="text-lg font-bold text-emerald-600 dark:text-emerald-400"
               />
-            </p>
-          )}
-          {isAccepted && initial > current && (
-            <p className="mt-0.5 text-sm text-gray-400 line-through decoration-2 decoration-gray-400">
-              <SarAmount
-                amount={initial}
-                currency={currency}
-                iconSize={13}
-                className="text-sm text-gray-400 line-through decoration-2 decoration-gray-400"
-                numberClassName="text-gray-400 line-through decoration-2 decoration-gray-400"
-              />
-            </p>
-          )}
-          {isAccepted ? (
-            <div className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
-              <BadgeCheck className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2.5} aria-hidden />
-              {t('acceptedOffer')}
-            </div>
-          ) : null}
-          {!isAccepted && isLiveAuction ? (
-            <div className="mt-1.5 inline-flex max-w-full items-center gap-0.5 rounded bg-primary px-1.5 py-0.5 text-[8px] font-bold text-white">
-              <Gavel className="h-2.5 w-2.5 shrink-0" strokeWidth={2.5} aria-hidden />
-              <span className="leading-tight">{t('productAuctionBadge')}</span>
-            </div>
-          ) : null}
-          {!isAccepted && pickupOnly ? (
-            <div className="mt-1.5">
-              <PickupOnlyBadge />
-            </div>
-          ) : null}
-          {!isAccepted && deliveryIsFree && !pickupOnly ? (
-            <div className="mt-1.5 inline-flex max-w-full items-center gap-0.5 rounded bg-primary px-1.5 py-0.5 text-[8px] font-bold text-white">
-              <Truck className="h-2.5 w-2.5 shrink-0" strokeWidth={2.5} aria-hidden />
-              <span className="leading-tight">{t('badgeFreeDelivery')}</span>
-            </div>
-          ) : null}
-          {!isAccepted ? (
-            <div className="mt-2">
-              <div className="btn-primary w-full py-1.5 text-xs font-bold inline-flex items-center justify-center gap-1">
-                <ArrowRight className="w-3.5 h-3.5 shrink-0 rtl:rotate-180" />
-                {t('addToCart')}
-              </div>
-            </div>
-          ) : null}
-          {isAccepted ? (
-            <div className="mt-2">
-              <div className="btn-primary w-full py-1.5 text-xs font-bold inline-flex items-center justify-center gap-1">
-                <ArrowRight className="w-3.5 h-3.5 shrink-0 rtl:rotate-180" />
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {tf('offerForQuantity', { n: approvedQty, unit })}
+              </p>
+              <button
+                type="button"
+                onClick={handlePurchase}
+                className="btn-primary w-full py-1.5 text-xs font-bold"
+              >
                 {t('purchase')}
-              </div>
+              </button>
             </div>
-          ) : null}
+          ) : (
+            <span className="flex w-full items-center justify-center rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+              {t('requestOfferCta')}
+            </span>
+          )}
         </div>
       </div>
     </>

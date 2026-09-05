@@ -28,7 +28,7 @@ import {
   excludePackageProducts,
   excludeDealsPageProducts,
   filterInStock,
-  sortProductsByPriceDecay,
+  // LEGACY B2C ranking: sortProductsByPriceDecay,
   sortByPrice,
 } from '../utils/productFeedFilters.js';
 import { bestSellers, newArrivals } from '../utils/shopProductDisplay.js';
@@ -109,7 +109,7 @@ export default function HomePage() {
   };
 
   const SORT_OPTIONS = [
-    { value: 'default', label: t('priceDroppingSort') },
+    { value: 'default', label: t('sortDefault') },
     { value: 'low',     label: t('priceLowHigh') },
     { value: 'high',    label: t('priceHighLow') },
   ];
@@ -216,13 +216,12 @@ export default function HomePage() {
       if (condition && String(productCondition(p)) !== condition) return false;
       return true;
     });
-    // Show the full catalog (admin-flagged deals already excluded above). Prices
-    // cycle (decay to minimum, then reset to initial via the scheduler), so we no
-    // longer drop products that are momentarily at their price floor.
+    // B2B marketplace: do not rank by live price decay.
+    // LEGACY: return sortProductsByPriceDecay(list);
     if (sort === 'low' || sort === 'high') {
       return sortByPrice(list, sort);
     }
-    return sortProductsByPriceDecay(list);
+    return list;
   }, [products, q, category, subcategory, lifecycle, locationFilter, condition, sort]);
 
   const lifecycleOptions = useMemo(
@@ -244,6 +243,15 @@ export default function HomePage() {
     ),
     [acceptedOffers],
   );
+
+  const approvedOfferByProductId = useMemo(() => {
+    const map = {};
+    for (const e of acceptedOffers) {
+      const pid = productIdKey(e.product) || String(e.request?.product_id ?? '').trim();
+      if (pid && e.request) map[pid] = e.request;
+    }
+    return map;
+  }, [acceptedOffers]);
 
   const acceptedOfferProductIds = useMemo(() => {
     const ids = new Set();
@@ -302,17 +310,17 @@ export default function HomePage() {
   const handleAcceptedOfferClick = (entry) => {
     // Match mobile home: add to cart and go to checkout with no toast (snackbar only
     // on checkout when coming from product-page auto-approve flow).
-    const requestQty = Number(entry?.request?.quantity || 1);
+    const requestQty = Math.max(1, Math.floor(Number(entry?.request?.quantity || 1) || 1));
     const offered = Number(entry?.request?.offered_price || 0);
     const product = entry.product || {};
+    const unit = requestQty > 0 && offered > 0 ? offered / requestQty : offered;
     const patched = {
       ...product,
-      current_price: offered,
-      currentPrice: offered,
-      initial_price: offered,
-      initialPrice: offered,
+      current_price: unit,
+      currentPrice: unit,
+      _offerLocked: true,
     };
-    addItem(patched, requestQty > 0 ? requestQty : 1, 'Full');
+    addItem(patched, requestQty, 'Full');
     navigate('/cart');
   };
 
@@ -741,7 +749,12 @@ export default function HomePage() {
                   />
                 ))}
                 {firstCatalogChunk.map((product) => (
-                  <ProductCard key={product._id} product={product} deliveryIsFree={deliveryIsFree} />
+                  <ProductCard
+                    key={product._id}
+                    product={product}
+                    deliveryIsFree={deliveryIsFree}
+                    approvedOffer={approvedOfferByProductId[productIdKey(product)] || null}
+                  />
                 ))}
                 {showCertifiedInGrid ? (
                   <div className="col-span-full my-1">
@@ -749,7 +762,12 @@ export default function HomePage() {
                   </div>
                 ) : null}
                 {restCatalogChunk.map((product) => (
-                  <ProductCard key={product._id} product={product} deliveryIsFree={deliveryIsFree} />
+                  <ProductCard
+                    key={product._id}
+                    product={product}
+                    deliveryIsFree={deliveryIsFree}
+                    approvedOffer={approvedOfferByProductId[productIdKey(product)] || null}
+                  />
                 ))}
               </div>
             )}

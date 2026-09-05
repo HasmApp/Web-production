@@ -47,16 +47,16 @@ export default function MyPriceRequestsPage() {
     try {
       setProcessingId(row.id);
       const product = await fetchProductById(row.product_id);
-      const qty = Number(row.quantity || 1);
+      const qty = Math.max(1, Math.floor(Number(row.quantity || 1) || 1));
       const offered = Number(row.offered_price || 0);
+      const unit = qty > 0 && offered > 0 ? offered / qty : offered;
       const patched = {
         ...product,
-        current_price: offered,
-        currentPrice: offered,
-        initial_price: offered,
-        initialPrice: offered,
+        current_price: unit,
+        currentPrice: unit,
+        _offerLocked: true,
       };
-      addItem(patched, qty > 0 ? qty : 1, 'Full');
+      addItem(patched, qty, 'Full');
       navigate('/checkout');
     } finally {
       setProcessingId(null);
