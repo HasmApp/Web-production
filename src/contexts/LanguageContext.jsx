@@ -1282,7 +1282,7 @@ function titleKeyForPath(pathname) {
 
 export function LanguageProvider({ children }) {
   const { pathname } = useLocation();
-  const [lang, setLang] = useState(() => localStorage.getItem('hasm_lang') || 'ar');
+  const [lang, setLang] = useState(() => localStorage.getItem('hasm_lang') || 'en');
 
   useLayoutEffect(() => {
     try {

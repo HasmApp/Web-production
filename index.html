@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <script>
       (function () {
         try {
-          var lang = localStorage.getItem('hasm_lang') || 'ar';
-          if (lang !== 'ar' && lang !== 'en') lang = 'ar';
+          var lang = localStorage.getItem('hasm_lang') || 'en';
+          if (lang !== 'ar' && lang !== 'en') lang = 'en';
           document.documentElement.lang = lang;
           document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
           var meta = document.querySelector('meta[name="description"]');
