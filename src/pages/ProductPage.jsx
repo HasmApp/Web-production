@@ -38,6 +38,18 @@ import {
   formatFoodProductDate,
   getProductExpiryDate,
 } from '../utils/foodProductDisplay.js';
+import { usePlatformConfig } from '../contexts/PlatformConfigContext.jsx';
+import {
+  productCondition,
+  productCountry,
+  productCurrency,
+  productLifecycle,
+  productLocation,
+  productMoq,
+  productSeller,
+  productUnit,
+  requiredPurchaseQuantity,
+} from '../utils/b2bProduct.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
 const getFavorites = () => {
@@ -105,6 +117,7 @@ export default function ProductPage() {
   const { purchaseForCheckout } = useCart();
   const { isAuthenticated } = useAuth();
   const { lang, t, tf } = useLanguage();
+  const { flags } = usePlatformConfig();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -150,10 +163,7 @@ export default function ProductPage() {
         const initialSize = hasSizeQuantities(data) ? defaultSizeOption(data) : null;
         setSelectedSize(initialSize);
         const maxQty = maxSelectableQuantity(data, initialSize);
-        setSelectedQuantity((q) => {
-          if (maxQty <= 0) return 1;
-          return Math.min(Math.max(1, q), maxQty);
-        });
+        setSelectedQuantity(requiredPurchaseQuantity(data, productMoq(data), flags.perPiece, initialSize) || 1);
         const favs = getFavorites();
         setIsFav(favs.includes(data._id));
         if (isAuthenticated) {
@@ -169,7 +179,7 @@ export default function ProductPage() {
       }
     };
     load();
-  }, [id, isAuthenticated, navigate]);
+  }, [id, isAuthenticated, navigate, flags.perPiece]);
 
   useProductLivePrice(product ? id : null, (price, fresh) => {
     setLockedPrice(price);
@@ -229,6 +239,14 @@ export default function ProductPage() {
   const maxQty = maxSelectableQuantity(product, selectedSize);
   const stepperMax = maxQty > 0 ? maxQty : 1;
   const totalLinePrice = current * selectedQuantity;
+  const currency = productCurrency(product);
+  const unit = productUnit(product) || t('units');
+  const moq = productMoq(product);
+  const lifecycle = productLifecycle(product);
+  const condition = productCondition(product);
+  const country = productCountry(product);
+  const locationName = productLocation(product);
+  const b2bSeller = productSeller(product) || supplierName;
 
   const toggleFav = () => {
     const favs = getFavorites();
@@ -245,9 +263,13 @@ export default function ProductPage() {
       toast.error(t(usesColors ? 'selectColorRequired' : 'selectSizeRequired'));
       return;
     }
-    let qty = selectedQuantity;
-    if (maxQty > 0 && qty > maxQty) qty = maxQty;
-    if (qty < 1) qty = 1;
+    const qty = requiredPurchaseQuantity(
+      product,
+      selectedQuantity,
+      flags.perPiece,
+      selectedSize,
+    );
+    if (qty < 1) return;
     const patched = { ...product, current_price: current, currentPrice: current };
     const groupKey = purchaseForCheckout(patched, qty, 'Full', selectedSize);
     savePendingCheckoutGroup(groupKey);
@@ -270,10 +292,9 @@ export default function ProductPage() {
   const handleSizeChange = (size) => {
     setSelectedSize(size);
     const nextMax = maxSelectableQuantity(product, size);
-    setSelectedQuantity((q) => {
-      if (nextMax <= 0) return 1;
-      return Math.min(Math.max(1, q), nextMax);
-    });
+    setSelectedQuantity(
+      requiredPurchaseQuantity(product, productMoq(product), flags.perPiece, size) || 1,
+    );
   };
 
   const handleSetAlert = async () => {
@@ -382,11 +403,26 @@ export default function ProductPage() {
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
               {title}
             </h1>
-            {supplierName && (
+            {b2bSeller && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1" dir="auto">
-                {tf('bySupplier', { name: supplierName })}
+                {tf('bySupplier', { name: b2bSeller })}
               </p>
             )}
+            {(lifecycle || condition || country || locationName) ? (
+              <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-gray-100 p-4 text-sm dark:border-gray-800">
+                {[
+                  [t('b2bLifecycle'), lifecycle],
+                  [t('b2bCondition'), condition],
+                  [t('b2bCountry'), country],
+                  [t('b2bLocation'), locationName],
+                ].filter(([, value]) => value).map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs text-gray-500 dark:text-gray-400">{label}</dt>
+                    <dd className="mt-0.5 font-semibold text-gray-900 dark:text-white" dir="auto">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
             {expiryDate ? (
               <p className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <Calendar className="h-4 w-4 shrink-0 text-primary" aria-hidden />
@@ -405,6 +441,7 @@ export default function ProductPage() {
             <div className="flex w-full justify-start items-baseline gap-3 flex-wrap">
               <SarAmount
                 amount={current}
+                currency={currency}
                 iconSize={26}
                 className="text-4xl font-extrabold text-primary items-baseline"
                 numberClassName="text-4xl font-extrabold text-primary"
@@ -413,7 +450,7 @@ export default function ProductPage() {
             {initial > current ? (
               <p className="text-sm text-gray-400 line-through flex w-full justify-start items-baseline gap-1 flex-wrap">
                 <span>{t('was')}</span>
-                <SarAmount amount={initial} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
+                <SarAmount amount={initial} currency={currency} iconSize={13} className="text-sm text-gray-400" numberClassName="text-gray-400" />
               </p>
             ) : null}
             {pickupOnly ? (
@@ -455,20 +492,24 @@ export default function ProductPage() {
             <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
               <div className="min-w-0 flex-1 basis-[6.5rem]">
                 <p className="text-[10px] leading-tight text-gray-500 dark:text-gray-400">
-                  {tf('totalPriceForPieces', { quantity: selectedQuantity })}
+                  {flags.perPiece
+                    ? tf('totalPriceForPieces', { quantity: selectedQuantity })
+                    : tf('marketplaceFullLotLine', { n: selectedQuantity, unit })}
                 </p>
                 <SarAmount
                   amount={totalLinePrice}
+                  currency={currency}
                   iconSize={16}
                   className="text-base font-bold text-gray-900 dark:text-white"
                   numberClassName="text-base font-bold text-gray-900 dark:text-white"
                 />
               </div>
+              {flags.perPiece ? (
               <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-1.5 py-1 dark:border-gray-700 dark:bg-gray-800/80">
                 <button
                   type="button"
-                  disabled={selectedQuantity <= 1 || maxQty <= 0}
-                  onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
+                  disabled={selectedQuantity <= Math.min(maxQty, moq) || maxQty <= 0}
+                  onClick={() => setSelectedQuantity((q) => Math.max(Math.min(maxQty, moq), q - 1))}
                   className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-700"
                   aria-label={t('decreaseQuantity')}
                 >
@@ -487,6 +528,7 @@ export default function ProductPage() {
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
+              ) : null}
               <button
                 type="button"
                 disabled={(product.quantity ?? product.stock ?? 0) < 1}
@@ -499,8 +541,8 @@ export default function ProductPage() {
             </div>
           </div>
 
-          {/* Tamara ad */}
-          <div className="card p-4" dir="ltr">
+          {/* LEGACY: Tamara promotion remains intact but follows the server payment flag. */}
+          {flags.tamara ? <div className="card p-4" dir="ltr">
             <div className="flex items-center gap-4">
               <div className={`flex-shrink-0 ${lang === 'ar' ? 'order-last' : ''}`}>
                 <img
@@ -533,7 +575,7 @@ export default function ProductPage() {
                 </span>
               </div>
             </div>
-          </div>
+          </div> : null}
 
           <button
             type="button"

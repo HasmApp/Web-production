@@ -4,6 +4,7 @@ import Layout from './components/layout/Layout.jsx';
 import { AuthProvider, useAuth } from './contexts/AuthContext.jsx';
 import { CartProvider } from './contexts/CartContext.jsx';
 import { LanguageProvider } from './contexts/LanguageContext.jsx';
+import { PlatformConfigProvider } from './contexts/PlatformConfigContext.jsx';
 
 import LandingPage from './pages/LandingPage.jsx';
 import HomePage from './pages/HomePage.jsx';
@@ -83,10 +84,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <LanguageProvider>
-    <AuthProvider>
-      <CartProvider>
-        <AppRoutes />
-        <Toaster
+      <PlatformConfigProvider>
+        <AuthProvider>
+          <CartProvider>
+            <AppRoutes />
+            <Toaster
           position="top-right"
           toastOptions={{
             duration: 3000,
@@ -97,12 +99,13 @@ export default function App() {
               fontWeight: '500',
             },
             success: {
-              iconTheme: { primary: '#6D47FF', secondary: '#fff' },
+              iconTheme: { primary: '#2F2446', secondary: '#fff' },
             },
           }}
         />
-      </CartProvider>
-    </AuthProvider>
+          </CartProvider>
+        </AuthProvider>
+      </PlatformConfigProvider>
     </LanguageProvider>
   );
 }

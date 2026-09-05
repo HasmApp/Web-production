@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { fetchProducts } from '../services/api.js';
+import { fetchMarketplaceProducts, fetchProducts } from '../services/api.js';
 import {
   applyProductPriceUpdate,
   attachPageResumeHandlers,
@@ -10,19 +10,27 @@ import {
  * Product catalog with HTTP refresh + `/ws/prices` ticks — shared by Home, Deals, and Cart.
  * Reconnects WS after idle/tab sleep and polls faster when the stream is unhealthy.
  */
-export default function useLiveProductCatalog({ enabled = true, pollMs = 30000 } = {}) {
+export default function useLiveProductCatalog({
+  enabled = true,
+  pollMs = 30000,
+  marketplace = false,
+} = {}) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const wsHealthyRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled) {
+      setProducts([]);
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     let pollTimer = null;
 
     const load = async ({ soft = false } = {}) => {
       try {
-        const data = await fetchProducts();
+        const data = await (marketplace ? fetchMarketplaceProducts() : fetchProducts());
         if (!cancelled) {
           setProducts(Array.isArray(data) ? data : data?.items || []);
         }
@@ -55,7 +63,7 @@ export default function useLiveProductCatalog({ enabled = true, pollMs = 30000 }
       if (pollTimer) clearTimeout(pollTimer);
       detachResume();
     };
-  }, [enabled, pollMs]);
+  }, [enabled, pollMs, marketplace]);
 
   useEffect(() => {
     if (!enabled) return undefined;

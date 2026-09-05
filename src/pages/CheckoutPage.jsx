@@ -12,7 +12,6 @@ import {
   createOrderWithTransferProof,
   fetchRegions, fetchCities, fetchDistricts,
   resolveMediaUrl,
-  fetchAppConfig,
   fetchPickupLocationPreview,
 } from '../services/api.js';
 import { useCart } from '../contexts/CartContext.jsx';
@@ -41,8 +40,13 @@ import {
   validateCheckoutLinesForPayment,
 } from '../utils/bogoPromotion.js';
 import { cleanProductTitleForCart, formatCartCheckoutLineLabel } from '../utils/stockTierLabel.js';
+import { usePlatformConfig } from '../contexts/PlatformConfigContext.jsx';
+import { productCurrency, purchaseQuantityError } from '../utils/b2bProduct.js';
 
 const CHECKOUT_ADDRESS_STORAGE_KEY = 'hasm_web_checkout_address_v1';
+// LEGACY: Tap and Tamara checkout implementations/assets remain below for
+// reactivation, but customer Web currently exposes bank transfer only.
+const SHOW_LEGACY_ONLINE_PAYMENTS = false;
 
 function defaultCheckoutAddress() {
   return {
@@ -436,6 +440,7 @@ export default function CheckoutPage() {
   } = useCart();
   const { user } = useAuth();
   const { t, tf, lang } = useLanguage();
+  const { config, flags } = usePlatformConfig();
   /** Same as mobile PaymentPage.showOfferApprovedMessage — one toast on checkout for auto-approved price request from product page. */
   const offerApprovedToastShownRef = useRef(false);
   const exitToHomeOnBack = Boolean(location.state?.exitToHomeOnBack);
@@ -523,10 +528,17 @@ export default function CheckoutPage() {
   );
   const PAYMENT_METHODS = useMemo(
     () => [
-      { id: 'card',          label: t('paymentCardTitle'),     icon: CreditCard, desc: t('visaMada') },
-      { id: 'tamara',        label: t('paymentTamaraTitle'),   icon: null,       logo: lang === 'ar' ? tamaraArUrl : tamaraEnUrl, desc: t('tamaraSplit') },
+      ...(flags.bankTransfer
+        ? [{ id: 'bank_transfer', label: t('bankTransferTitle'), icon: Landmark, desc: t('bankTransferDesc') }]
+        : []),
+      ...(SHOW_LEGACY_ONLINE_PAYMENTS && flags.tap
+        ? [{ id: 'card', label: t('paymentCardTitle'), icon: CreditCard, desc: t('visaMada') }]
+        : []),
+      ...(SHOW_LEGACY_ONLINE_PAYMENTS && flags.tamara
+        ? [{ id: 'tamara', label: t('paymentTamaraTitle'), icon: null, logo: lang === 'ar' ? tamaraArUrl : tamaraEnUrl, desc: t('tamaraSplit') }]
+        : []),
     ],
-    [lang, t]
+    [flags.bankTransfer, flags.tap, flags.tamara, lang]
   );
 
   const paymentStepIndex = allPickupOnly ? 0 : 1;
@@ -548,11 +560,12 @@ export default function CheckoutPage() {
     setStep(paymentStepIndex);
   }, [startAtPayment, checkoutItems.length, paymentStepIndex]);
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  // Web storefront: bank transfer is intentionally disabled.
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
   useEffect(() => {
-    if (paymentMethod === 'bank_transfer') setPaymentMethod('card');
-  }, [paymentMethod]);
+    if (!PAYMENT_METHODS.some((method) => method.id === paymentMethod)) {
+      setPaymentMethod(PAYMENT_METHODS[0]?.id || 'bank_transfer');
+    }
+  }, [PAYMENT_METHODS, paymentMethod]);
 
   const [pendingOrderId, setPendingOrderId] = useState(null);
   const [transferProof, setTransferProof] = useState(null); // File object for bank transfer
@@ -707,14 +720,10 @@ export default function CheckoutPage() {
   );
 
   useEffect(() => {
-    fetchAppConfig()
-      .then((data) => {
-        const dp = data?.delivery_price;
-        const n = typeof dp === 'number' ? dp : parseFloat(String(dp ?? '0'), 10);
-        setConfigDeliveryPrice(Number.isFinite(n) ? n : 0);
-      })
-      .catch(() => setConfigDeliveryPrice(0));
-  }, []);
+    const dp = config?.delivery_price;
+    const n = typeof dp === 'number' ? dp : parseFloat(String(dp ?? '0'), 10);
+    setConfigDeliveryPrice(Number.isFinite(n) ? n : 0);
+  }, [config]);
 
   useEffect(() => {
     if (!allPickupOnly || checkoutItems.length === 0) {
@@ -806,6 +815,13 @@ export default function CheckoutPage() {
 
   // ── Card: use Tap's hosted page (src_all) — no JS SDK needed ─────────────────
   const runCheckoutVariantGuard = () => {
+    const quantityError = checkoutItems
+      .map((line) => purchaseQuantityError(line, flags.perPiece, t, tf))
+      .find(Boolean);
+    if (quantityError) {
+      toast.error(quantityError);
+      return false;
+    }
     const variantErrors = validateCheckoutLinesForPayment(checkoutItems, t);
     if (variantErrors.length) {
       toast.error(variantErrors[0]);
@@ -949,9 +965,10 @@ export default function CheckoutPage() {
   };
 
   const handlePay = () => {
-    if (paymentMethod === 'card') handleCardPay();
+    if (paymentMethod === 'bank_transfer') handleBankTransfer();
+    else if (paymentMethod === 'card') handleCardPay();
     else if (paymentMethod === 'tamara') handleTamara();
-    else handleCardPay();
+    else toast.error(t('paymentMethodUnavailable'));
   };
 
   return (
@@ -967,7 +984,8 @@ export default function CheckoutPage() {
               } else {
                 restoreStashedItems();
               }
-              navigate('/', { replace: true });
+              // Shopping checkout returns to the open catalog, not the B2B landing page.
+              navigate('/marketplace', { replace: true });
               return;
             }
             if (allPickupOnly || step === 0) navigate('/cart');
@@ -1187,7 +1205,13 @@ export default function CheckoutPage() {
                         <p className="text-xs text-gray-500">{tf('qtyShort', { n: displayQty })}</p>
                       </div>
                       <p className="text-sm font-bold text-primary">
-                        <SarAmount amount={lineTotal} iconSize={13} className="text-primary" numberClassName="font-bold" />
+                        <SarAmount
+                          amount={lineTotal}
+                          currency={productCurrency(product)}
+                          iconSize={13}
+                          className="text-primary"
+                          numberClassName="font-bold"
+                        />
                       </p>
                     </div>
                   );
@@ -1233,6 +1257,7 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
   const { t, tf } = useLanguage();
   const fee = Number(deliveryFee) || 0;
   const grandTotal = total + fee;
+  const currency = productCurrency(items?.[0]?.product);
   return (
     <div className="card p-5 h-fit sticky top-20">
       <h3 className="font-bold text-gray-900 dark:text-white mb-4">{t('orderSummary')}</h3>
@@ -1264,7 +1289,7 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
                 ) : null}
               </span>
               <span className="flex-shrink-0 text-gray-600 dark:text-gray-400">
-                <SarAmount amount={lineTotal} iconSize={12} />
+                <SarAmount amount={lineTotal} currency={productCurrency(product)} iconSize={12} />
               </span>
             </div>
           );
@@ -1273,15 +1298,15 @@ function OrderSummary({ items, total, deliveryFee, lang }) {
       <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-2 text-sm">
         <div className="flex justify-between text-gray-500">
           <span>{t('subtotal')}</span>
-          <span><SarAmount amount={total} iconSize={13} /></span>
+          <span><SarAmount amount={total} currency={currency} iconSize={13} /></span>
         </div>
         <div className="flex justify-between text-gray-500">
           <span>{t('deliveryFee')}</span>
-          <span><SarAmount amount={fee} iconSize={13} /></span>
+          <span><SarAmount amount={fee} currency={currency} iconSize={13} /></span>
         </div>
         <div className="flex justify-between font-bold text-gray-900 dark:text-white pt-1 border-t border-gray-100 dark:border-gray-800">
           <span>{t('total')} <span className="text-xs font-normal text-gray-400">({t('includingVat')})</span></span>
-          <span className="text-primary"><SarAmount amount={grandTotal} iconSize={14} className="text-primary" numberClassName="font-bold text-primary" /></span>
+          <span className="text-primary"><SarAmount amount={grandTotal} currency={currency} iconSize={14} className="text-primary" numberClassName="font-bold text-primary" /></span>
         </div>
       </div>
     </div>

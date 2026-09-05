@@ -12,6 +12,7 @@ export default function SarAmount({
   numberClassName = '',
   iconPosition = 'start',
   prefix = '',
+  currency = 'SAR',
 }) {
   const { isRTL } = useLanguage();
   const n = parseFloat(amount ?? 0);
@@ -32,11 +33,17 @@ export default function SarAmount({
         fontFamily: "'Inter', system-ui, sans-serif",
       }}
     >
-      <CurrencyIcon
-        size={iconSize}
-        color="currentColor"
-        className={`shrink-0 opacity-90 ${iconClassName}`.trim()}
-      />
+      {String(currency).toUpperCase() === 'SAR' ? (
+        <CurrencyIcon
+          size={iconSize}
+          color="currentColor"
+          className={`shrink-0 opacity-90 ${iconClassName}`.trim()}
+        />
+      ) : (
+        <span className={`shrink-0 text-[0.7em] leading-none opacity-90 ${iconClassName}`.trim()}>
+          {String(currency).toUpperCase()}
+        </span>
+      )}
       <span className={`tabular-nums leading-none ${numberClassName}`.trim()}>{formatted}</span>
     </span>
   );

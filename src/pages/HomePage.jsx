@@ -8,7 +8,7 @@ import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 import ProductRailSection from '../components/shop/ProductRailSection.jsx';
-import { fetchMyPriceRequests, fetchProductById, fetchAppConfig } from '../services/api.js';
+import { fetchMyPriceRequests, fetchProductById } from '../services/api.js';
 import useLiveProductCatalog from '../hooks/useLiveProductCatalog.js';
 import ProductCard from '../components/product/ProductCard.jsx';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
@@ -33,6 +33,13 @@ import {
 } from '../utils/productFeedFilters.js';
 import { bestSellers, newArrivals } from '../utils/shopProductDisplay.js';
 import { SORT_SELECT_CLASS } from '../design/shopTokens.js';
+import { usePlatformConfig } from '../contexts/PlatformConfigContext.jsx';
+import {
+  normalizedFieldOptions,
+  productCondition,
+  productLifecycle,
+  productLocation,
+} from '../utils/b2bProduct.js';
 
 /** IDs must match Dashboard / product-service (e.g. InsertProduct: Fashion, HomeLiving, LifeStyle, …). */
 const CATEGORIES = [
@@ -82,6 +89,9 @@ const HOME_GRID_CHUNK_SIZE = 4;
 // reactivation, but hidden now that `/` is a dedicated HASM business landing
 // page and `/marketplace` is focused on product discovery.
 const SHOW_LEGACY_MARKETPLACE_HERO = false;
+// LEGACY: accepted/private offers stay implemented, but the open marketplace
+// must contain only listings authorized by the public marketplace endpoint.
+const SHOW_LEGACY_ACCEPTED_OFFERS = false;
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -90,6 +100,7 @@ export default function HomePage() {
   const { isAuthenticated } = useAuth();
   const { t, lang } = useLanguage();
   const { addItem } = useCart();
+  const { config, flags } = usePlatformConfig();
   const [searchInput, setSearchInput] = useState(q);
 
   const categoryLabel = (id) => {
@@ -103,31 +114,34 @@ export default function HomePage() {
     { value: 'high',    label: t('priceHighLow') },
   ];
 
-  const { products, loading } = useLiveProductCatalog();
+  const { products, loading } = useLiveProductCatalog({
+    enabled: flags.marketplace,
+    marketplace: true,
+  });
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState(null);
+  const [lifecycle, setLifecycle] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
+  const [condition, setCondition] = useState('');
   const [sort, setSort] = useState('default');
   const [acceptedOffers, setAcceptedOffers] = useState([]);
   const [deliveryIsFree, setDeliveryIsFree] = useState(false);
   const [openAuctionRoomId, setOpenAuctionRoomId] = useState(null);
+
+  useEffect(() => {
+    document.title = t('marketplaceDocumentTitle');
+    document.querySelector('meta[name="description"]')
+      ?.setAttribute('content', t('marketplaceMetaDescription'));
+  }, [lang]);
 
   const selectCategory = (id) => {
     setCategory(id);
     setSubcategory(null);
   };
   useEffect(() => {
-    let cancelled = false;
-    fetchAppConfig()
-      .then((d) => {
-        if (cancelled) return;
-        const dp = Number(d?.delivery_price);
-        setDeliveryIsFree(Number.isFinite(dp) && dp < 1e-9);
-      })
-      .catch(() => {
-        if (!cancelled) setDeliveryIsFree(false);
-      });
-    return () => { cancelled = true; };
-  }, []);
+    const dp = Number(config?.delivery_price);
+    setDeliveryIsFree(Number.isFinite(dp) && dp < 1e-9);
+  }, [config]);
 
   useEffect(() => {
     let mounted = true;
@@ -196,6 +210,9 @@ export default function HomePage() {
       }
       if (!shopProductMatchesCategory(p, category)) return false;
       if (subcategory && !productMatchesSubcategory(p, subcategory)) return false;
+      if (lifecycle && String(productLifecycle(p)) !== lifecycle) return false;
+      if (locationFilter && String(productLocation(p)) !== locationFilter) return false;
+      if (condition && String(productCondition(p)) !== condition) return false;
       return true;
     });
     // Show the full catalog (admin-flagged deals already excluded above). Prices
@@ -205,10 +222,23 @@ export default function HomePage() {
       return sortByPrice(list, sort);
     }
     return sortProductsByPriceDecay(list);
-  }, [products, q, category, subcategory, sort]);
+  }, [products, q, category, subcategory, lifecycle, locationFilter, condition, sort]);
+
+  const lifecycleOptions = useMemo(
+    () => normalizedFieldOptions(products, productLifecycle),
+    [products],
+  );
+  const locationOptions = useMemo(
+    () => normalizedFieldOptions(products, productLocation),
+    [products],
+  );
+  const conditionOptions = useMemo(
+    () => normalizedFieldOptions(products, productCondition),
+    [products],
+  );
 
   const acceptedOffersVisible = useMemo(
-    () => acceptedOffers.filter(
+    () => (SHOW_LEGACY_ACCEPTED_OFFERS ? acceptedOffers : []).filter(
       (e) => acceptedOfferEntryIsFulfillable(e) && !isBundlePackageProduct(e?.product),
     ),
     [acceptedOffers],
@@ -611,7 +641,26 @@ export default function HomePage() {
             ) : null}
 
             {/* Active filters */}
-            {(category || subcategory || q) && (
+            <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {[
+                [lifecycle, setLifecycle, t('filterLifecycle'), lifecycleOptions],
+                [locationFilter, setLocationFilter, t('filterLocation'), locationOptions],
+                [condition, setCondition, t('filterCondition'), conditionOptions],
+              ].map(([value, setter, label, options]) => (
+                <select
+                  key={label}
+                  value={value}
+                  onChange={(event) => setter(event.target.value)}
+                  className={SORT_SELECT_CLASS}
+                  aria-label={label}
+                >
+                  <option value="">{label}: {t('all')}</option>
+                  {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              ))}
+            </div>
+
+            {(category || subcategory || lifecycle || locationFilter || condition || q) && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {category && (
                   <span className="badge bg-primary-50 dark:bg-primary-900/20 text-primary gap-1.5">
@@ -631,6 +680,24 @@ export default function HomePage() {
                     <button type="button" onClick={() => { setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('q'); return n; }); }}><X className="w-3 h-3" /></button>
                   </span>
                 )}
+                {lifecycle && (
+                  <span className="badge bg-primary-50 dark:bg-primary-900/20 text-primary gap-1.5">
+                    {lifecycle}
+                    <button type="button" onClick={() => setLifecycle('')}><X className="w-3 h-3" /></button>
+                  </span>
+                )}
+                {locationFilter && (
+                  <span className="badge bg-primary-50 dark:bg-primary-900/20 text-primary gap-1.5">
+                    {locationFilter}
+                    <button type="button" onClick={() => setLocationFilter('')}><X className="w-3 h-3" /></button>
+                  </span>
+                )}
+                {condition && (
+                  <span className="badge bg-primary-50 dark:bg-primary-900/20 text-primary gap-1.5">
+                    {condition}
+                    <button type="button" onClick={() => setCondition('')}><X className="w-3 h-3" /></button>
+                  </span>
+                )}
               </div>
             )}
 
@@ -646,6 +713,9 @@ export default function HomePage() {
                     type="button"
                     onClick={() => {
                       selectCategory('');
+                      setLifecycle('');
+                      setLocationFilter('');
+                      setCondition('');
                       setSearchParams({});
                       setSearchInput('');
                     }}

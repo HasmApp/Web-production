@@ -137,6 +137,23 @@ export const fetchProducts = async (params = {}) => {
   return data;
 };
 
+/**
+ * Open B2B catalog. This endpoint must authorize and return public marketplace
+ * listings server-side; intentionally do not infer private visibility here.
+ */
+export const fetchMarketplaceProducts = async () => {
+  const res = await api.get('/products/marketplace', {
+    params: { limit: 5000, _ts: Date.now() },
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+  });
+  const data = res.data;
+  if (Array.isArray(data)) return excludeHiddenShopProducts(data.map(normalizeProduct));
+  if (Array.isArray(data?.items)) {
+    return { ...data, items: excludeHiddenShopProducts(data.items.map(normalizeProduct)) };
+  }
+  return data;
+};
+
 export const fetchProductById = async (id) => {
   const res = await api.get(`/products/${id}`);
   const product = normalizeProduct(res.data);

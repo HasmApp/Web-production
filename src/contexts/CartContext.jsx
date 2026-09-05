@@ -16,6 +16,8 @@ import {
 import { findUnavailableCartProductIds } from '../utils/cartPrune.js';
 import { buildAuctionWinCartProduct, syncAuctionWinOrder } from '../utils/auctionCheckout.js';
 import { fetchProductById } from '../services/api.js';
+import { usePlatformConfig } from './PlatformConfigContext.jsx';
+import { requiredPurchaseQuantity } from '../utils/b2bProduct.js';
 
 const CartContext = createContext(null);
 const STORAGE_KEY = 'hasm_cart';
@@ -33,6 +35,7 @@ const load = (key) => {
 const save = (key, items) => localStorage.setItem(key, JSON.stringify(items));
 
 export function CartProvider({ children }) {
+  const { flags } = usePlatformConfig();
   const [items, setItems] = useState(() => load(STORAGE_KEY));
   const [stashed, setStashed] = useState(() => load(STASH_KEY));
   const [groupOrder, setGroupOrder] = useState(() => {
@@ -56,6 +59,24 @@ export function CartProvider({ children }) {
   useEffect(() => {
     setGroupOrder((prev) => pruneGroupOrder(prev, items));
   }, [items]);
+  useEffect(() => {
+    setItems((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (isAuctionWonCartItem(item)) return item;
+        const quantity = requiredPurchaseQuantity(
+          item.product,
+          item.quantity,
+          flags.perPiece,
+          item.size,
+        );
+        if (quantity < 1 || quantity === item.quantity) return item;
+        changed = true;
+        return { ...item, quantity };
+      });
+      return changed ? next : prev;
+    });
+  }, [flags.perPiece]);
 
   /** Drop stale auction-win rows left in stash from older checkout flows. */
   useEffect(() => {
@@ -66,7 +87,14 @@ export function CartProvider({ children }) {
     setStashed(cleaned);
   }, []);
 
-  const mergeLineIntoCart = useCallback((prev, line, quantity, stockLabel, size) => {
+  const mergeLineIntoCart = useCallback((
+    prev,
+    line,
+    quantity,
+    stockLabel,
+    size,
+    replaceQuantity = false,
+  ) => {
     const groupKey = cartGroupKeyForItem(line);
     const idx = prev.findIndex(
       (i) => i.productId === line.productId
@@ -79,7 +107,7 @@ export function CartProvider({ children }) {
     if (idx >= 0) {
       const updated = {
         ...prev[idx],
-        quantity: prev[idx].quantity + quantity,
+        quantity: replaceQuantity ? quantity : prev[idx].quantity + quantity,
         price: line.price,
       };
       return [updated, ...sameGroup, ...other];
@@ -88,10 +116,20 @@ export function CartProvider({ children }) {
   }, []);
 
   const addItem = useCallback((product, quantity = 1, stockLabel = 'Full', size = null) => {
-    const line = cartItemFromProduct(product, quantity, stockLabel, size);
+    const enforcedQuantity = requiredPurchaseQuantity(product, quantity, flags.perPiece, size);
+    if (enforcedQuantity < 1) return null;
+    const line = cartItemFromProduct(product, enforcedQuantity, stockLabel, size);
     bumpGroupToFront(cartGroupKeyForItem(line));
-    setItems((prev) => mergeLineIntoCart(prev, line, quantity, stockLabel, size));
-  }, [mergeLineIntoCart, bumpGroupToFront]);
+    setItems((prev) => mergeLineIntoCart(
+      prev,
+      line,
+      enforcedQuantity,
+      stockLabel,
+      size,
+      !flags.perPiece,
+    ));
+    return line;
+  }, [mergeLineIntoCart, bumpGroupToFront, flags.perPiece]);
 
   /** Auction win checkout — stash non-auction lines only; one win line in cart (sync before navigate). */
   const replaceCartForAuctionWin = useCallback((product, quantity = 1, stockLabel = 'Full', size = null) => {
@@ -164,11 +202,20 @@ export function CartProvider({ children }) {
 
   /** Add line then keep only its supplier group for checkout (stash the rest). */
   const purchaseForCheckout = useCallback((product, quantity = 1, stockLabel = 'Full', size = null) => {
-    const line = cartItemFromProduct(product, quantity, stockLabel, size);
+    const enforcedQuantity = requiredPurchaseQuantity(product, quantity, flags.perPiece, size);
+    if (enforcedQuantity < 1) return null;
+    const line = cartItemFromProduct(product, enforcedQuantity, stockLabel, size);
     const groupKey = cartGroupKeyForItem(line);
     bumpGroupToFront(groupKey);
     setItems((prev) => {
-      const merged = mergeLineIntoCart(prev, line, quantity, stockLabel, size);
+      const merged = mergeLineIntoCart(
+        prev,
+        line,
+        enforcedQuantity,
+        stockLabel,
+        size,
+        !flags.perPiece,
+      );
       const keep = merged.filter((i) => cartGroupKeyForItem(i) === groupKey);
       const toStash = merged.filter((i) => cartGroupKeyForItem(i) !== groupKey);
       if (toStash.length > 0) {
@@ -182,7 +229,7 @@ export function CartProvider({ children }) {
       return keep;
     });
     return groupKey;
-  }, [mergeLineIntoCart, bumpGroupToFront]);
+  }, [mergeLineIntoCart, bumpGroupToFront, flags.perPiece]);
 
   const removeItem = useCallback((productId, size = null) => {
     setItems((prev) => prev.filter(

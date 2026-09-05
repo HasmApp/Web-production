@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Package, BadgeCheck, Truck, ArrowRight, Gavel } from 'lucide-react';
+import { Heart, Package, BadgeCheck, Truck, ArrowRight, Gavel, MapPin, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { resolveMediaUrl } from '../../services/api.js';
 import { useLanguage } from '../../contexts/LanguageContext.jsx';
@@ -14,6 +14,18 @@ import {
 import { FLASH_GRADIENT, LIVE_PRICE_TEXT_CLASS } from '../../design/shopTokens.js';
 import { dealDiscountPercent } from '../../utils/productFeedFilters.js';
 import PickupOnlyBadge from '../common/PickupOnlyBadge.jsx';
+import { usePlatformConfig } from '../../contexts/PlatformConfigContext.jsx';
+import {
+  productCondition,
+  productCountry,
+  productCurrency,
+  productLifecycle,
+  productLocation,
+  productMoq,
+  productSeller,
+  productUnit,
+  requiredPurchaseQuantity,
+} from '../../utils/b2bProduct.js';
 
 const FAVORITES_KEY = 'hasm_favorites';
 
@@ -32,6 +44,7 @@ export default function ProductCard({
   dealPriceDisplay = false,
 }) {
   const { lang, t, tf } = useLanguage();
+  const { flags } = usePlatformConfig();
   const isAccepted = acceptedOffer != null && typeof onAcceptedClick === 'function';
   const [isFav, setIsFav] = useState(false);
   const [priceChanged, setPriceChanged] = useState(false);
@@ -84,6 +97,13 @@ export default function ProductCard({
   const isLiveAuction = isAuctionProduct(product);
   const discountPct = dealPriceDisplay && !isAccepted ? dealDiscountPercent(product) : null;
   const hasLiveDiscount = !isAccepted && strikePrice > current;
+  const currency = productCurrency(product);
+  const unit = productUnit(product);
+  const lifecycle = productLifecycle(product);
+  const condition = productCondition(product);
+  const location = productLocation(product) || productCountry(product);
+  const seller = productSeller(product);
+  const requiredQuantity = requiredPurchaseQuantity(product, productMoq(product), flags.perPiece);
 
   const shellClass = `group flex flex-col min-w-0 text-start no-underline text-inherit rounded-xl bg-white dark:bg-gray-900 shadow-md transition-all duration-300 hover:opacity-[0.97] ${
     isAccepted
@@ -160,6 +180,7 @@ export default function ProductCard({
           <div className="flex flex-wrap items-baseline gap-1.5">
             <SarAmount
               amount={current}
+              currency={currency}
               iconSize={15}
               className={`text-lg font-bold transition-all duration-300 ${
                 isAccepted
@@ -177,10 +198,32 @@ export default function ProductCard({
               }`}
             />
           </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {flags.perPiece
+              ? tf('marketplaceMoqLine', { n: productMoq(product), unit: unit || t('units') })
+              : tf('marketplaceFullLotLine', { n: requiredQuantity, unit: unit || t('units') })}
+          </p>
+          {(lifecycle || condition) ? (
+            <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-semibold text-gray-600 dark:text-gray-300">
+              {lifecycle ? <span className="rounded bg-gray-100 px-2 py-1 dark:bg-gray-800">{lifecycle}</span> : null}
+              {condition ? <span className="rounded bg-gray-100 px-2 py-1 dark:bg-gray-800">{condition}</span> : null}
+            </div>
+          ) : null}
+          {location ? (
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400" dir="auto">
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden /> {location}
+            </p>
+          ) : null}
+          {seller ? (
+            <p className="mt-1 flex items-center gap-1 truncate text-xs text-gray-500 dark:text-gray-400" dir="auto">
+              <Building2 className="h-3 w-3 shrink-0" aria-hidden /> {seller}
+            </p>
+          ) : null}
           {!isAccepted && strikePrice > current && (
             <p className="mt-0.5 text-sm text-gray-400 line-through decoration-2 decoration-gray-400">
               <SarAmount
                 amount={strikePrice}
+                currency={currency}
                 iconSize={13}
                 className="text-sm text-gray-400 line-through decoration-2 decoration-gray-400"
                 numberClassName="text-gray-400 line-through decoration-2 decoration-gray-400"
@@ -191,6 +234,7 @@ export default function ProductCard({
             <p className="mt-0.5 text-sm text-gray-400 line-through decoration-2 decoration-gray-400">
               <SarAmount
                 amount={initial}
+                currency={currency}
                 iconSize={13}
                 className="text-sm text-gray-400 line-through decoration-2 decoration-gray-400"
                 numberClassName="text-gray-400 line-through decoration-2 decoration-gray-400"
@@ -232,7 +276,7 @@ export default function ProductCard({
             <div className="mt-2">
               <div className="btn-primary w-full py-1.5 text-xs font-bold inline-flex items-center justify-center gap-1">
                 <ArrowRight className="w-3.5 h-3.5 shrink-0 rtl:rotate-180" />
-                {lang === 'ar' ? 'شراء' : 'Purchase'}
+                {t('purchase')}
               </div>
             </div>
           ) : null}
