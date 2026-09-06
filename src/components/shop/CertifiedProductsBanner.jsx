@@ -69,7 +69,7 @@ export default function CertifiedProductsBanner({
 
   return (
     <div
-      className={`rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/50 sm:p-5 ${className}`}
+      className={`rounded-xl border border-gray-200 bg-white p-4 dark:border-[#262626] dark:bg-[#1E1E1E] sm:p-5 ${className}`}
       dir="ltr"
     >
       <div className="flex items-center gap-4 sm:gap-5">

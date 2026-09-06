@@ -103,7 +103,7 @@ export default function App() {
               fontWeight: '500',
             },
             success: {
-              iconTheme: { primary: '#2F2446', secondary: '#fff' },
+              iconTheme: { primary: '#000000', secondary: '#fff' },
             },
           }}
         />

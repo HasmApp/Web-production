@@ -29,10 +29,10 @@ export default function ShopHomeFooter({ withBottomNav = false }) {
       <div className="shop-home-footer__content">
         <div className="shop-home-footer__left">
           <div className="shop-home-footer__logo-wrap">
-            <BrandWordmark size="md" />
+            <BrandWordmark invert size="md" />
           </div>
           <p className="shop-home-footer__copyright">
-            © {year} {t('footerRightsReserved')}.
+            © {year} {t('footerRightsReserved')}
           </p>
           <p className="shop-home-footer__tagline">{t('footerEmpoweringTagline')}</p>
           <a

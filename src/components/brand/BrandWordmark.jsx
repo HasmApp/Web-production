@@ -14,7 +14,10 @@ const SIZE_EN = {
   xl: 'text-3xl sm:text-4xl',
 };
 
-/** Arabic wordmark uses Thmanyah Sans (خط ثمانية الرقمي). English matches content. */
+/** Logo uses Thmanyah (Serif Display), not ثمانية الرقمي. Arabic is stretched with tatweel: حـسـم */
+const TATWEEL = '\u0640';
+const stretchArabic = (name) => String(name || '').split('').join(TATWEEL);
+
 export default function BrandWordmark({ invert = false, size = 'md', className = '' }) {
   const { t, lang } = useLanguage();
   const isEn = lang === 'en';
@@ -23,7 +26,7 @@ export default function BrandWordmark({ invert = false, size = 'md', className =
     <span
       className={`brand-wordmark ${isEn ? 'brand-wordmark--en' : ''} ${invert ? 'brand-wordmark--invert' : ''} ${sizes[size] || sizes.md} ${className}`}
     >
-      {t('brandName')}
+      {isEn ? t('brandName') : stretchArabic(t('brandName'))}
     </span>
   );
 }

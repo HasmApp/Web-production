@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { fetchMyOrders } from '../services/api.js';
 import { PageLoader } from '../components/common/LoadingSpinner.jsx';
+import EmptyState from '../components/common/EmptyState.jsx';
 import TabEmptyState from '../components/layout/TabEmptyState.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
@@ -153,10 +154,19 @@ export default function OrdersPage() {
     fetchMyOrders().then(setOrders).catch(() => setOrders([])).finally(() => setLoading(false));
   }, [isAuthenticated]);
 
+  const pageHeader = (
+    <div className="flex items-center gap-3 mb-8">
+      <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-white/10 flex items-center justify-center">
+        <Package className="w-5 h-5 text-primary dark:text-white" />
+      </div>
+      <h1 className="section-title">{t('myOrders')}</h1>
+    </div>
+  );
+
   if (!isAuthenticated) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="section-title mb-8">{t('myOrders')}</h1>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
+        {pageHeader}
         <EmptyState
           icon={Package}
           title={t('loginOrdersTitle')}
@@ -170,8 +180,8 @@ export default function OrdersPage() {
   if (loading) return <PageLoader />;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
-      <h1 className="section-title mb-8">{t('myOrders')}</h1>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-fade-in">
+      {pageHeader}
 
       {orders.length === 0 ? (
         <TabEmptyState

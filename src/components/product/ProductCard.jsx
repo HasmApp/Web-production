@@ -92,7 +92,7 @@ export default function ProductCard({
   const location = productLocation(product);
   const seller = productSeller(product);
 
-  const shellClass = `group flex flex-col min-w-0 text-start no-underline text-inherit rounded-xl bg-white dark:bg-gray-900 shadow-md transition-all duration-300 hover:opacity-[0.97] ${
+  const shellClass = `group flex flex-col min-w-0 text-start no-underline text-inherit rounded-xl bg-white dark:bg-[#1E1E1E] shadow-md transition-all duration-300 hover:opacity-[0.97] ${
     isAccepted || publicApproved
       ? 'border-2 border-emerald-500/90 dark:border-emerald-400/80'
       : ''
@@ -130,7 +130,7 @@ export default function ProductCard({
 
       <div className="flex flex-1 flex-col gap-1.5 px-2 py-1.5 pb-3">
         {categoryLabel ? (
-          <p className="text-sm font-semibold leading-snug text-primary mb-0.5" dir="auto">
+          <p className="text-sm font-semibold leading-snug text-primary dark:text-white mb-0.5" dir="auto">
             {categoryLabel}
           </p>
         ) : null}
@@ -190,7 +190,7 @@ export default function ProductCard({
               </button>
             </div>
           ) : (
-            <span className="flex w-full items-center justify-center rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <span className="flex w-full items-center justify-center rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:bg-[#262626] dark:text-gray-200">
               {t('requestOfferCta')}
             </span>
           )}

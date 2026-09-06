@@ -74,8 +74,9 @@
 
 @layer base {
   :root {
-    --primary: #2F2446;
-    --primary-light: #E8E4EE;
+    /* LEGACY: --primary: #2F2446; --primary-light: #E8E4EE; */
+    --primary: #000000;
+    --primary-light: #E5E5E5;
     --font-ui: 'Thmanyah Sans', 'Tajawal', system-ui, sans-serif;
     /* LEGACY: --font-heading-ar: 'Thmanyah Serif Display', 'Tajawal', serif; */
     --font-heading-ar: 'Thmanyah Sans', 'Tajawal', sans-serif;
@@ -88,6 +89,17 @@
 
   html {
     scroll-behavior: smooth;
+  }
+
+  html.dark,
+  html.dark body {
+    background-color: #121212;
+    color: #f5f5f5;
+  }
+
+  html.dark header {
+    background-color: #121212;
+    border-bottom-color: #262626;
   }
 
   html,
@@ -108,17 +120,19 @@
   }
 
   .brand-wordmark {
-    /* LEGACY: font-family: 'Thmanyah Serif Display', serif; */
-    font-family: 'Thmanyah Sans', sans-serif;
-    font-weight: 900;
-    letter-spacing: -0.02em;
+    /* Logo uses Thmanyah (Serif Display), not ثمانية الرقمي (Thmanyah Sans). */
+    /* LEGACY: font-family: 'Thmanyah Sans', sans-serif; font-weight: 900; */
+    font-family: 'Thmanyah Serif Display', serif;
+    font-weight: 700;
+    letter-spacing: 0;
     line-height: 1;
-    color: #2F2446;
+    color: #000000;
   }
   .brand-wordmark--en {
-    font-family: var(--font-heading-en);
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    /* LEGACY: font-family: 'Thmanyah Sans'; font-weight: 800; letter-spacing: 0.04em; */
+    font-family: 'Thmanyah Serif Display', serif;
+    font-weight: 700;
+    letter-spacing: 0.32em;
   }
   .brand-wordmark--invert {
     color: #ffffff;
@@ -146,11 +160,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #A89BB8;
+    background: #A3A3A3;
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #2F2446;
+    background: #000000;
   }
 }
 
@@ -168,11 +182,11 @@
   }
 
   .card {
-    @apply bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm;
+    @apply bg-white dark:bg-[#1E1E1E] rounded-2xl border border-gray-100 dark:border-[#262626] shadow-sm;
   }
 
   .input {
-    @apply w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-primary focus:outline-none transition-colors duration-200 text-sm;
+    @apply w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-[#262626] bg-white dark:bg-[#1E1E1E] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-primary focus:outline-none transition-colors duration-200 text-sm;
   }
 
   .badge {
@@ -220,10 +234,9 @@
 
 @layer components {
   .shop-home-footer {
-    @apply relative mt-auto overflow-hidden border-t border-gray-200 bg-white/80 backdrop-blur-xl dark:border-gray-800 dark:bg-gray-900/80;
+    @apply relative mt-auto overflow-hidden border-t border-white/10 bg-black text-gray-400;
     padding: 2rem 1.5rem;
     padding-bottom: max(2rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem));
-    box-shadow: 0 -1px 0 rgba(116, 98, 246, 0.12);
   }
 
   .shop-home-footer__content {
@@ -246,15 +259,15 @@
   }
 
   .shop-home-footer__copyright {
-    @apply m-0 text-sm text-gray-500 dark:text-gray-400;
+    @apply m-0 text-sm text-white;
   }
 
   .shop-home-footer__tagline {
-    @apply mt-1 text-sm text-gray-400 dark:text-gray-500;
+    @apply mt-1 text-sm text-gray-500;
   }
 
   .shop-home-footer__terms {
-    @apply mt-2 inline-block text-sm font-medium text-primary hover:text-primary/80;
+    @apply mt-2 inline-block text-sm font-medium text-white hover:text-white/70;
   }
 
   .shop-home-footer__middle {
@@ -262,7 +275,7 @@
   }
 
   .shop-home-footer__badge {
-    @apply flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400;
+    @apply flex items-center gap-2 text-sm text-gray-400;
   }
 
   .shop-home-footer__badge-icon--secure {
@@ -282,11 +295,11 @@
   }
 
   .shop-home-footer__compliance {
-    @apply mx-auto mt-4 max-w-7xl border-t border-gray-200 pt-4 dark:border-gray-800;
+    @apply mx-auto mt-4 max-w-7xl border-t border-white/10 pt-4;
   }
 
   .shop-home-footer__compliance-number {
-    @apply m-0 text-center text-xs tracking-wide text-gray-500 dark:text-gray-400;
+    @apply m-0 text-center text-xs tracking-wide text-gray-400;
     white-space: nowrap;
   }
 
@@ -343,5 +356,58 @@
   .footer-compliance-grid > p:nth-child(4) {
     grid-row: 2;
     grid-column: 2;
+  }
+}
+
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  animation: landingReveal 0.7s ease-out forwards;
+}
+.landing-reveal-d1 { animation-delay: 0.08s; }
+.landing-reveal-d2 { animation-delay: 0.16s; }
+.landing-reveal-d3 { animation-delay: 0.24s; }
+.landing-reveal-d4 { animation-delay: 0.32s; }
+
+.landing-flow-line {
+  position: relative;
+  overflow: hidden;
+}
+.landing-flow-line::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -40%;
+  width: 40%;
+  background: linear-gradient(to right, transparent, #fff, transparent);
+  animation: landingFlow 1.6s ease-in-out infinite;
+}
+[dir="rtl"] .landing-flow-line::after {
+  animation-name: landingFlowRtl;
+}
+
+@keyframes landingReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes landingFlow {
+  0% { inset-inline-start: -40%; }
+  100% { inset-inline-start: 120%; }
+}
+@keyframes landingFlowRtl {
+  0% { inset-inline-start: 120%; }
+  100% { inset-inline-start: -40%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal,
+  .landing-flow-line::after {
+    animation: none;
+  }
+  .landing-reveal {
+    opacity: 1;
+    transform: none;
   }
 }

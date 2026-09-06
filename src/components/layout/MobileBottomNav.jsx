@@ -21,7 +21,7 @@ export default function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md safe-area-pb"
+      className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-[#262626] bg-white/95 dark:bg-[#121212] backdrop-blur-md safe-area-pb"
       style={{ height: BOTTOM_NAV_HEIGHT }}
       aria-label={t('shopBottomNavAria')}
     >
@@ -33,7 +33,7 @@ export default function MobileBottomNav() {
               <Link
                 to={to}
                 className={`relative flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
-                  active ? 'text-primary' : 'text-gray-500 dark:text-gray-400'
+                  active ? 'text-primary dark:text-white' : 'text-gray-500 dark:text-gray-400'
                 }`}
               >
                 <span className="relative inline-flex shrink-0">

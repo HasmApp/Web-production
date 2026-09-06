@@ -59,7 +59,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
+    <header className="sticky top-0 z-50 bg-white/95 dark:bg-[#121212] backdrop-blur-md border-b border-gray-100 dark:border-[#262626]">
       <div className="max-w-7xl mx-auto w-full min-w-0 px-4 sm:px-6">
         <div className="flex min-w-0 w-full items-center min-h-20 h-20 gap-2 sm:gap-4">
           {/* Logo — may shrink on narrow mobile so toolbar + nowrap login stay on one row */}
@@ -81,8 +81,8 @@ export default function Navbar() {
                 className={({ isActive }) =>
                   `flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${
                     isActive
-                      ? 'text-primary bg-primary-50 dark:bg-primary-900/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
+                      ? 'text-primary dark:text-white bg-transparent'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-transparent'
                   }`
                 }
               >
@@ -254,7 +254,7 @@ export default function Navbar() {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${
                     isActive
-                      ? 'text-primary bg-primary-50 dark:bg-primary-900/20'
+                      ? 'text-primary dark:text-white bg-transparent'
                       : 'text-gray-700 dark:text-gray-300'
                   }`
                 }

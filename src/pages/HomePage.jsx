@@ -5,7 +5,8 @@ import {
   LayoutGrid, Home as HomeIcon,
 } from 'lucide-react';
 import CertifiedProductsBanner from '../components/shop/CertifiedProductsBanner.jsx';
-import DemandSection from '../components/demand/DemandSection.jsx';
+// LEGACY: demand form lived on the marketplace page.
+// import DemandSection from '../components/demand/DemandSection.jsx';
 import SubcategoryAuctionBlock from '../components/shop/SubcategoryAuctionBlock.jsx';
 import AuctionRoomModal from '../components/auction/AuctionRoomModal.jsx';
 // LEGACY homepage rails: import ProductRailSection from '../components/shop/ProductRailSection.jsx';
@@ -331,10 +332,10 @@ export default function HomePage() {
       {SHOW_LEGACY_MARKETPLACE_HERO && (
       <>
       {/* Hero — LTR grid: app card left, copy & CTAs right (Arabic copy is RTL inside the right column) */}
-      <section className="relative isolate overflow-hidden bg-gradient-to-br from-primary-700 via-primary to-violet-600 text-white">
+      <section className="relative isolate overflow-hidden bg-gradient-to-br from-black via-neutral-900 to-neutral-800 text-white">
         <div className="pointer-events-none absolute inset-0 opacity-[0.15]">
           <div className="absolute -top-24 end-0 h-80 w-80 rounded-full bg-white blur-3xl" />
-          <div className="absolute bottom-0 start-10 h-64 w-64 rounded-full bg-violet-300 blur-3xl" />
+          <div className="absolute bottom-0 start-10 h-64 w-64 rounded-full bg-neutral-400 blur-3xl" />
         </div>
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] bg-[length:100%_4rem] opacity-30" />
 
@@ -440,7 +441,7 @@ export default function HomePage() {
       </section>
 
       {/* Stats bar */}
-      <section className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+      <section className="bg-white dark:bg-[#121212] border-b border-gray-100 dark:border-[#262626]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-3 divide-x divide-gray-100 dark:divide-gray-800">
             {[
@@ -461,9 +462,9 @@ export default function HomePage() {
       </section>
 
       {/* Tamara banner — full width (certified strip is woven into the product grid below) */}
-      <section className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
+      <section className="bg-white dark:bg-[#121212] border-b border-gray-100 dark:border-[#262626]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6">
-          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/50 sm:p-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-[#262626] dark:bg-[#1E1E1E] sm:p-5">
             <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6" dir="ltr">
                 <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-4' : 'sm:order-1'}`}>
                   <img
@@ -482,8 +483,8 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className={`flex-shrink-0 ${lang === 'ar' ? 'sm:order-1' : 'sm:order-4'}`}>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f8e9ff] dark:bg-purple-900/30 px-4 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 px-4 py-1.5 text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-500" />
                     {t('tamaraAdBadge')}
                   </span>
                 </div>
@@ -554,7 +555,7 @@ export default function HomePage() {
                       onClick={() => selectCategory(id)}
                       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-start transition-colors ${
                         category === id
-                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary'
+                          ? 'bg-primary-50 dark:bg-white/10 dark:text-white text-primary'
                           : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                       }`}
                     >
@@ -574,7 +575,7 @@ export default function HomePage() {
                       onClick={() => setSubcategory(null)}
                       className={`w-full flex items-center justify-start px-3 py-2 rounded-lg text-xs font-medium text-start transition-colors ${
                         subcategory == null
-                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary'
+                          ? 'bg-primary-50 dark:bg-white/10 dark:text-white text-primary'
                           : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                       }`}
                     >
@@ -587,7 +588,7 @@ export default function HomePage() {
                         onClick={() => setSubcategory(sub)}
                         className={`w-full flex items-center justify-start px-3 py-2 rounded-lg text-xs font-medium text-start transition-colors ${
                           subcategory === sub
-                            ? 'bg-primary-50 dark:bg-primary-900/20 text-primary'
+                            ? 'bg-primary-50 dark:bg-white/10 dark:text-white text-primary'
                             : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                         }`}
                       >
@@ -612,7 +613,7 @@ export default function HomePage() {
                   className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full text-sm font-medium transition-all ${
                     category === id
                       ? 'bg-primary text-white shadow-sm'
-                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                      : 'bg-white dark:bg-[#262626] text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-[#262626]'
                   }`}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
@@ -779,11 +780,13 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* LEGACY: demand form on marketplace
       <section id="demand" className="border-t border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16">
           <DemandSection />
         </div>
       </section>
+      */}
 
       {openAuctionRoomId ? (
         <AuctionRoomModal
